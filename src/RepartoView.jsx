@@ -3,6 +3,7 @@ import { api } from './utils/api.js'
 import { todayISO, formatDateLong } from './utils/date.js'
 import { geocodeAddress } from './utils/geocode.js'
 import { optimizeRoute } from './utils/optimize.js'
+import { openDataUrlInNewTab } from './utils/openDataUrl.js'
 
 const POLL_MS = 12000
 
@@ -241,6 +242,7 @@ export default function RepartoView() {
                 <div className="client-row-body">
                   <div className="client-row-name">
                     {p.clienteNombre}
+                    {p.numeroPedido && <span className="office-status-muted">Nº {p.numeroPedido}</span>}
                     <span className={`estado-badge estado-badge--${estado.tone}`}>{estado.label}</span>
                   </div>
                   <div className="client-row-address">{cliente?.direccion}</div>
@@ -251,7 +253,9 @@ export default function RepartoView() {
                   </div>
                   <div className="albaran-row">
                     {p.albaranPdf ? (
-                      <span className="office-status-muted">📄 Albarán adjunto</span>
+                      <button type="button" className="btn-link" onClick={() => openDataUrlInNewTab(p.albaranPdf)}>
+                        📄 Ver albarán adjunto
+                      </button>
                     ) : (
                       <>
                         <button

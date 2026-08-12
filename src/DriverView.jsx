@@ -4,6 +4,7 @@ import SignaturePad from './SignaturePad.jsx'
 import { api } from './utils/api.js'
 import { todayISO, formatDateLong, getWeekDates, addDaysISO } from './utils/date.js'
 import { mergeSignatureIntoPdf } from './utils/pdfSign.js'
+import { openDataUrlInNewTab } from './utils/openDataUrl.js'
 
 const ROUTE_POLL_MS = 15000
 
@@ -325,9 +326,13 @@ function StopCard({ stop, pending, error, soloLectura, onToggleSinFirma, onFirma
           </div>
         )}
         {tieneAlbaran && (
-          <a href={pedido.albaranFirmado || pedido.albaranPdf} target="_blank" rel="noreferrer" className="btn-link">
+          <button
+            type="button"
+            className="btn-link"
+            onClick={(e) => { e.stopPropagation(); openDataUrlInNewTab(pedido.albaranFirmado || pedido.albaranPdf) }}
+          >
             📄 Ver albarán
-          </a>
+          </button>
         )}
         {error && <div className="stop-card-warning">{error}</div>}
       </div>

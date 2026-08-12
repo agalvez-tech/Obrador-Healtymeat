@@ -44,6 +44,10 @@ oficina y repartidor ven lo mismo en tiempo real desde dispositivos distintos.
 5. Los pedidos de "En producción" y "OK envío" aparecen
    plegados, mostrando solo el cliente y un resumen — toca la cabecera de
    cada uno para desplegarlo y ver/editar sus líneas.
+6. **Nº de pedido**: si el PDF trae una referencia tipo "Pedido de compra Nº
+   P-4-2026/000324", se detecta sola y se guarda; si no la detecta, o no es
+   un PDF, el campo queda vacío y se puede escribir a mano — nunca es
+   obligatorio.
 
 ## Pestaña Producción
 
@@ -171,3 +175,6 @@ se cambia luego con "Cambiar modo" en la cabecera.
   gestiona (añadir/quitar) desde la pestaña Producción.
 - **Pedidos y producción no están conectados con stock**: de momento son
   solo un registro/archivo, tal como se pidió.
+- **Ver PDFs e imágenes subidos**: se abren en pestaña nueva convirtiéndolos
+  en un archivo real en el momento de pulsar el enlace (Chrome bloquea abrir
+  directamente un PDF guardado como texto/base64, y se quedaba en blanco).

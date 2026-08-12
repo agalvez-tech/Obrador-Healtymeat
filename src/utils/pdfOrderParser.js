@@ -60,6 +60,23 @@ export function matchProductoToCatalog(textoProducto, catalogo, threshold = 0.6)
   return null
 }
 
+const NUMERO_PEDIDO_PATTERNS = [
+  /PEDIDO\s+DE\s+COMPRA\s*N[ºo°]?\.?\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,40})/i,
+  /N[ºo°]\.?\s*(?:DE\s*)?PEDIDO\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,40})/i,
+  /PEDIDO\s*N[ºo°]?\.?\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,40})/i,
+]
+
+// Busca un número/referencia de pedido en el texto del PDF (p. ej.
+// "PEDIDO DE COMPRA Nº P-4-2026/000324"). Es opcional: si no encuentra
+// nada con confianza razonable, devuelve una cadena vacía.
+export function extractNumeroPedido(text) {
+  for (const pattern of NUMERO_PEDIDO_PATTERNS) {
+    const match = text.match(pattern)
+    if (match) return match[1].trim()
+  }
+  return ''
+}
+
 const CANTIDAD_RE = /(\d{1,4}[.,]\d{2,4})/g
 const FORMATO_RE =
   /(BANDEJA\s*\d*\s*UND[A-Z]*(?:\s*X\s*\d+\s*GR)?|CAJA[S]?\s*(?:DE\s*)?\d*\s*UND[A-Z]*(?:\s*X\s*\d+\s*GR)?|BOLSA[S]?\s*\d*\s*KG|\bKG\b|\bUDS?\b|\bUNIDADES?\b)/i

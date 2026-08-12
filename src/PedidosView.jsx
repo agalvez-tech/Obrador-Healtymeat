@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from './utils/api.js'
 import { extractTextFromPdf } from './utils/pdfExtract.js'
-import { extractLineasConCatalogo } from './utils/pdfOrderParser.js'
+import { extractLineasConCatalogo, extractNumeroPedido } from './utils/pdfOrderParser.js'
+import { openDataUrlInNewTab } from './utils/openDataUrl.js'
 
 const ESTADOS = [
   { key: 'elaboracion', label: 'En producción' },
@@ -108,6 +109,7 @@ export default function PedidosView() {
 
 function PedidoCard({ pedido, productos, onSave, onDelete }) {
   const [lineas, setLineas] = useState(pedido.lineas || [])
+  const [numeroPedido, setNumeroPedido] = useState(pedido.numeroPedido || '')
   const [saving, setSaving] = useState(false)
 
   const isAgencia = pedido.tipoEntrega === 'agencia'
@@ -131,6 +133,12 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
   async function guardarLineas() {
     setSaving(true)
     await onSave(pedido, { lineas })
+    setSaving(false)
+  }
+
+  async function guardarNumeroPedido() {
+    setSaving(true)
+    await onSave(pedido, { numeroPedido: numeroPedido.trim() })
     setSaving(false)
   }
 
@@ -171,6 +179,7 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
             <span className={`badge ${isAgencia ? 'badge--agencia' : 'badge--propio'}`}>
               {isAgencia ? 'Agencia' : 'Reparto propio'}
             </span>
+            {pedido.numeroPedido && <span className="office-status-muted">Nº {pedido.numeroPedido}</span>}
             <span className="office-status-muted">
               subido {pedido.fechaSubida} · reparto {pedido.fechaReparto}
             </span>
@@ -195,6 +204,18 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
       {expandido && (
         <>
           <PedidoOrigenPreview origen={pedido.origen} />
+
+          <div>
+            <label className="field-label">Nº de pedido (opcional)</label>
+            <input
+              className="field-input field-input--compact"
+              placeholder="Se rellena solo si el PDF lo trae, o escríbelo a mano"
+              value={numeroPedido}
+              disabled={soloLectura}
+              onChange={(e) => setNumeroPedido(e.target.value)}
+              onBlur={guardarNumeroPedido}
+            />
+          </div>
 
           {pedido.tipoEntrega === 'propio' && pedido.estado !== 'elaboracion' && (
             <AlbaranStatus pedido={pedido} />
@@ -280,19 +301,20 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
 function AlbaranStatus({ pedido }) {
   if (pedido.estado === 'enviado') {
     const fecha = pedido.entregadoAt ? new Date(pedido.entregadoAt).toLocaleString('es-ES') : ''
+    const albaran = pedido.albaranFirmado || pedido.albaranPdf
     return (
       <div className="albaran-status albaran-status--firmado">
         <div>✓ Entregado y firmado{fecha ? ` · ${fecha}` : ''}</div>
         <div className="albaran-status-links">
-          {(pedido.albaranFirmado || pedido.albaranPdf) && (
-            <a href={pedido.albaranFirmado || pedido.albaranPdf} target="_blank" rel="noreferrer" className="btn-link">
+          {albaran && (
+            <button type="button" className="btn-link" onClick={() => openDataUrlInNewTab(albaran)}>
               📄 Ver albarán firmado
-            </a>
+            </button>
           )}
           {pedido.firmaImagen && (
-            <a href={pedido.firmaImagen} target="_blank" rel="noreferrer" className="btn-link">
+            <button type="button" className="btn-link" onClick={() => openDataUrlInNewTab(pedido.firmaImagen)}>
               ✍️ Ver firma
-            </a>
+            </button>
           )}
         </div>
       </div>
@@ -302,7 +324,10 @@ function AlbaranStatus({ pedido }) {
   if (pedido.albaranPdf) {
     return (
       <div className="albaran-status">
-        📄 Albarán adjunto, pendiente de que el cliente firme en la entrega.
+        📄 Albarán adjunto, pendiente de que el cliente firme en la entrega. —{' '}
+        <button type="button" className="btn-link" onClick={() => openDataUrlInNewTab(pedido.albaranPdf)}>
+          Ver albarán
+        </button>
       </div>
     )
   }
@@ -321,16 +346,20 @@ function PedidoOrigenPreview({ origen }) {
   }
   if (origen.tipo === 'imagen') {
     return (
-      <a href={origen.contenido} target="_blank" rel="noreferrer" className="pedido-origen-imagen-link">
+      <button
+        type="button"
+        className="pedido-origen-imagen-link"
+        onClick={() => openDataUrlInNewTab(origen.contenido)}
+      >
         <img src={origen.contenido} alt="Pedido" className="pedido-origen-imagen" />
-      </a>
+      </button>
     )
   }
   if (origen.tipo === 'pdf') {
     return (
-      <a href={origen.contenido} target="_blank" rel="noreferrer" className="btn-link">
+      <button type="button" className="btn-link" onClick={() => openDataUrlInNewTab(origen.contenido)}>
         📄 Ver PDF del pedido
-      </a>
+      </button>
     )
   }
   return null
@@ -380,6 +409,7 @@ function UploadPedidoModal({ clients, productos, onCancel, onSave }) {
     try {
       let contenido = texto.trim()
       let lineas = null
+      let numeroPedido = ''
 
       if (modo !== 'texto') {
         setProgreso('Leyendo archivo…')
@@ -392,6 +422,7 @@ function UploadPedidoModal({ clients, productos, onCancel, onSave }) {
           const textoPdf = await extractTextFromPdf(contenido)
           lineas = extractLineasConCatalogo(textoPdf, productos)
           if (lineas.length === 0) lineas = null
+          numeroPedido = extractNumeroPedido(textoPdf)
         } catch {
           // Si el PDF no se puede leer (escaneado, formato raro...), seguimos
           // sin desglose automático; la persona lo rellenará a mano.
@@ -399,7 +430,7 @@ function UploadPedidoModal({ clients, productos, onCancel, onSave }) {
         }
       }
 
-      await onSave({ clienteId, origen: { tipo: modo, contenido }, lineas })
+      await onSave({ clienteId, origen: { tipo: modo, contenido }, lineas, numeroPedido })
     } catch (err) {
       setError(err.message || 'No se pudo subir el pedido.')
       setSaving(false)

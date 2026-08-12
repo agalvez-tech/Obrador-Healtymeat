@@ -61,6 +61,7 @@ export default async function handler(req, res) {
         clienteNombre: cliente.nombre,
         tipoEntrega: cliente.tipoEntrega || 'propio',
         origen: body.origen, // { tipo: 'texto'|'imagen'|'pdf', contenido }
+        numeroPedido: body.numeroPedido || '',
         fechaSubida: new Date().toISOString().slice(0, 10),
         fechaReparto,
         estado: 'elaboracion',
