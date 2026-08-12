@@ -1,153 +1,116 @@
-import { useState } from 'react'
-import { geocodeAddress } from './utils/geocode.js'
+import { useEffect, useRef } from 'react'
+import L from 'leaflet'
 
-export default function ClientForm({ initial, onCancel, onSave }) {
-  const [nombre, setNombre] = useState(initial?.nombre || '')
-  const [direccion, setDireccion] = useState(initial?.direccion || '')
-  const [telefono, setTelefono] = useState(initial?.telefono || '')
-  const [tipoEntrega, setTipoEntrega] = useState(initial?.tipoEntrega || 'propio')
-  const [dias, setDias] = useState(initial?.dias || '')
-  const [horario, setHorario] = useState(initial?.horario || '')
-  const [notas, setNotas] = useState(initial?.notas || '')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState(null)
+// Iconos personalizados con los colores de marca, en vez de los pines
+// por defecto de Leaflet (que no encajan con la identidad RK).
+function makeDivIcon(color, label, pulse) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="stop-pin ${pulse ? 'stop-pin--live' : ''}" style="--pin-color:${color}">${label ?? ''}</div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  })
+}
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    if (!nombre.trim()) {
-      setError('El nombre es obligatorio.')
-      return
+export default function MapView({ stops, currentPosition, focusStopId }) {
+  const mapRef = useRef(null)
+  const leafletMap = useRef(null)
+  const markersRef = useRef({})
+  const meMarkerRef = useRef(null)
+  const hasCentered = useRef(false)
+
+  useEffect(() => {
+    leafletMap.current = L.map(mapRef.current, {
+      zoomControl: true,
+      attributionControl: true,
+    }).setView([39.4699, -0.3763], 12) // Valencia por defecto hasta tener GPS
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap',
+    }).addTo(leafletMap.current)
+
+    return () => {
+      leafletMap.current.remove()
     }
-    if (tipoEntrega === 'propio' && !direccion.trim()) {
-      setError('La dirección es obligatoria para clientes de reparto propio.')
-      return
+  }, [])
+
+  // Marcador de "mi ubicación"
+  useEffect(() => {
+    if (!leafletMap.current || !currentPosition) return
+    const { lat, lng } = currentPosition
+
+    if (!meMarkerRef.current) {
+      meMarkerRef.current = L.marker([lat, lng], {
+        icon: makeDivIcon('#1E5FBF', '', true),
+        zIndexOffset: 1000,
+      }).addTo(leafletMap.current)
+    } else {
+      meMarkerRef.current.setLatLng([lat, lng])
     }
-    setSaving(true)
-    setError(null)
-    try {
-      let lat = initial?.lat ?? null
-      let lng = initial?.lng ?? null
-      if (tipoEntrega === 'propio' && direccion.trim()) {
-        // Solo volvemos a geocodificar si la dirección ha cambiado o no tenía coordenadas
-        if (!lat || !lng || direccion.trim() !== initial?.direccion) {
-          const coords = await geocodeAddress(direccion.trim())
-          if (!coords) {
-            setError('No he podido localizar esa dirección en el mapa. Revísala e inténtalo de nuevo.')
-            setSaving(false)
-            return
-          }
-          lat = coords.lat
-          lng = coords.lng
-        }
+
+    if (!hasCentered.current) {
+      leafletMap.current.setView([lat, lng], 13)
+      hasCentered.current = true
+    }
+  }, [currentPosition])
+
+  // Marcadores de paradas
+  useEffect(() => {
+    if (!leafletMap.current) return
+    const map = leafletMap.current
+    const seen = new Set()
+
+    stops.forEach((stop) => {
+      if (!stop.lat || !stop.lng) return
+      seen.add(stop.id)
+      const color = stop.entregado ? '#2F7A4D' : '#CF731B'
+      const label = stop.entregado ? '✓' : stop.orden
+
+      if (markersRef.current[stop.id]) {
+        markersRef.current[stop.id].setIcon(makeDivIcon(color, label))
+        markersRef.current[stop.id].setLatLng([stop.lat, stop.lng])
+      } else {
+        const marker = L.marker([stop.lat, stop.lng], { icon: makeDivIcon(color, label) })
+          .addTo(map)
+          .bindPopup(`<strong>${stop.orden}. ${escapeHtml(stop.nombre)}</strong><br>${escapeHtml(stop.direccion)}`)
+        markersRef.current[stop.id] = marker
       }
-      await onSave({
-        ...(initial?.id ? { id: initial.id } : {}),
-        nombre: nombre.trim(),
-        direccion: direccion.trim(),
-        telefono: telefono.trim(),
-        tipoEntrega,
-        dias: dias.trim(),
-        horario: horario.trim(),
-        notas: notas.trim(),
-        lat,
-        lng,
-      })
-    } catch (err) {
-      setError(err.message || 'No se pudo guardar el cliente.')
-      setSaving(false)
+    })
+
+    Object.keys(markersRef.current).forEach((id) => {
+      if (!seen.has(id)) {
+        markersRef.current[id].remove()
+        delete markersRef.current[id]
+      }
+    })
+
+    // Si no tenemos GPS aún, encuadrar el mapa a las paradas geocodificadas
+    if (!hasCentered.current) {
+      const coords = stops.filter((s) => s.lat && s.lng).map((s) => [s.lat, s.lng])
+      if (coords.length > 0) {
+        map.fitBounds(coords, { padding: [40, 40], maxZoom: 14 })
+        hasCentered.current = true
+      }
     }
-  }
+  }, [stops])
 
-  return (
-    <div className="modal-backdrop" onClick={onCancel}>
-      <form className="modal client-form" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-        <h3>{initial ? 'Editar cliente' : 'Nuevo cliente'}</h3>
+  // Centrar en una parada concreta cuando se toca en la lista
+  useEffect(() => {
+    if (!focusStopId || !leafletMap.current) return
+    const marker = markersRef.current[focusStopId]
+    if (marker) {
+      leafletMap.current.setView(marker.getLatLng(), 16, { animate: true })
+      marker.openPopup()
+    }
+  }, [focusStopId])
 
-        <label className="field-label">Nombre</label>
-        <input
-          className="field-input"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          placeholder="Restaurante Casa Pepa"
-          autoFocus
-        />
+  return <div ref={mapRef} className="map-view" />
+}
 
-        <label className="field-label">Tipo de entrega</label>
-        <div className="pill-tabs pill-tabs--compact">
-          <button
-            type="button"
-            className={`pill-tab ${tipoEntrega === 'propio' ? 'pill-tab--active' : ''}`}
-            onClick={() => setTipoEntrega('propio')}
-          >
-            Reparto propio
-          </button>
-          <button
-            type="button"
-            className={`pill-tab ${tipoEntrega === 'agencia' ? 'pill-tab--active' : ''}`}
-            onClick={() => setTipoEntrega('agencia')}
-          >
-            Agencia de envío
-          </button>
-        </div>
-
-        <label className="field-label">
-          Dirección{tipoEntrega === 'agencia' ? ' (opcional)' : ''}
-        </label>
-        <input
-          className="field-input"
-          value={direccion}
-          onChange={(e) => setDireccion(e.target.value)}
-          placeholder="Avinguda del Mar 22, Rafelbunyol"
-        />
-
-        <label className="field-label">Teléfono (opcional)</label>
-        <input
-          className="field-input"
-          value={telefono}
-          onChange={(e) => setTelefono(e.target.value)}
-          placeholder="600111222"
-        />
-
-        <div className="field-row">
-          <div>
-            <label className="field-label">Días habituales (opcional)</label>
-            <input
-              className="field-input"
-              value={dias}
-              onChange={(e) => setDias(e.target.value)}
-              placeholder="L, X, J"
-            />
-          </div>
-          <div>
-            <label className="field-label">Horario (opcional)</label>
-            <input
-              className="field-input"
-              value={horario}
-              onChange={(e) => setHorario(e.target.value)}
-              placeholder="9:00-12:00"
-            />
-          </div>
-        </div>
-
-        <label className="field-label">Notas (opcional)</label>
-        <input
-          className="field-input"
-          value={notas}
-          onChange={(e) => setNotas(e.target.value)}
-          placeholder="Entrar por la puerta lateral"
-        />
-
-        {error && <p className="upload-error">{error}</p>}
-
-        <div className="modal-actions">
-          <button type="button" className="btn-ghost btn-ghost--dark" onClick={onCancel} disabled={saving}>
-            Cancelar
-          </button>
-          <button type="submit" className="btn-primary btn-primary--small" disabled={saving}>
-            {saving ? 'Localizando…' : 'Guardar'}
-          </button>
-        </div>
-      </form>
-    </div>
-  )
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 }

@@ -1,23 +1,58 @@
-<!doctype html>
-<html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#171513" />
-    <title>HealthyMeat · Obrador</title>
-    <link rel="icon" type="image/jpeg" href="/logo.jpg" />
-    <link rel="apple-touch-icon" href="/logo.jpg" />
-    <meta property="og:title" content="HealthyMeat · Obrador" />
-    <meta property="og:description" content="Pedidos, producción y reparto de HealthyMeat." />
-    <meta property="og:image" content="/logo.jpg" />
-    <meta property="og:type" content="website" />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
+export function todayISO() {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+export function formatDateLong(iso) {
+  const d = new Date(`${iso}T00:00:00`)
+  return d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+
+function toISO(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+export function addDaysISO(iso, days) {
+  const d = new Date(`${iso}T00:00:00`)
+  d.setDate(d.getDate() + days)
+  return toISO(d)
+}
+
+// Devuelve los 7 días (lunes a domingo) de la semana que contiene "iso".
+export function getWeekDates(iso) {
+  const d = new Date(`${iso}T00:00:00`)
+  const dow = d.getDay() // 0=domingo..6=sábado
+  const offsetToMonday = dow === 0 ? -6 : 1 - dow
+  const monday = new Date(d)
+  monday.setDate(d.getDate() + offsetToMonday)
+
+  const labels = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+  return Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(monday)
+    day.setDate(monday.getDate() + i)
+    return { iso: toISO(day), label: labels[i], dayNum: day.getDate() }
+  })
+}
+
+// Clave estable para "la semana que contiene esta fecha", tipo "2026-W33".
+// Se usa como identificador para guardar qué clientes no quieren pedido esa semana.
+export function weekKey(iso) {
+  const dates = getWeekDates(iso)
+  const monday = new Date(`${dates[0].iso}T00:00:00`)
+  const firstJan = new Date(monday.getFullYear(), 0, 1)
+  const diffDays = Math.round((monday - firstJan) / 86400000)
+  const week = Math.ceil((diffDays + firstJan.getDay() + 1) / 7)
+  return `${monday.getFullYear()}-W${String(week).padStart(2, '0')}`
+}
+
+// Rango [inicio, fin] (lunes a domingo) de la semana que contiene "iso".
+export function weekRange(iso) {
+  const dates = getWeekDates(iso)
+  return { desde: dates[0].iso, hasta: dates[6].iso }
+}

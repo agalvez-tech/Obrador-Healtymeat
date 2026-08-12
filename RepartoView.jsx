@@ -1,123 +1,153 @@
-import { useEffect, useState } from 'react'
-import { api } from './utils/api.js'
-import { todayISO, addDaysISO, weekKey, weekRange, getWeekDates } from './utils/date.js'
+import { useState } from 'react'
+import { geocodeAddress } from './utils/geocode.js'
 
-function formatWeekLabel(weekAnchor) {
-  const dates = getWeekDates(weekAnchor)
-  const inicio = new Date(`${dates[0].iso}T00:00:00`)
-  const fin = new Date(`${dates[6].iso}T00:00:00`)
-  const fmt = (d) => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
-  return `${fmt(inicio)} – ${fmt(fin)}`
-}
+export default function ClientForm({ initial, onCancel, onSave }) {
+  const [nombre, setNombre] = useState(initial?.nombre || '')
+  const [direccion, setDireccion] = useState(initial?.direccion || '')
+  const [telefono, setTelefono] = useState(initial?.telefono || '')
+  const [tipoEntrega, setTipoEntrega] = useState(initial?.tipoEntrega || 'propio')
+  const [dias, setDias] = useState(initial?.dias || '')
+  const [horario, setHorario] = useState(initial?.horario || '')
+  const [notas, setNotas] = useState(initial?.notas || '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
 
-export default function WeeklyClientStatus({ clients }) {
-  const [weekAnchor, setWeekAnchor] = useState(todayISO())
-  const [pedidos, setPedidos] = useState([])
-  const [omitidos, setOmitidos] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('')
-
-  const semana = weekKey(weekAnchor)
-  const { desde, hasta } = weekRange(weekAnchor)
-
-  async function refresh() {
-    const [pedidosData, omitidosData] = await Promise.all([
-      api.getPedidos({ desde, hasta }),
-      api.getOmitidos(semana),
-    ])
-    setPedidos(pedidosData)
-    setOmitidos(omitidosData)
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    setLoading(true)
-    refresh()
-    const interval = setInterval(refresh, 15000)
-    return () => clearInterval(interval)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekAnchor])
-
-  async function toggleOmitido(clienteId, omitido) {
-    const next = await api.setOmitido(semana, clienteId, omitido)
-    setOmitidos(next)
-  }
-
-  function estadoCliente(cliente) {
-    const pedidosCliente = pedidos.filter((p) => p.clienteId === cliente.id)
-    if (pedidosCliente.length === 0) {
-      return omitidos.includes(cliente.id)
-        ? { color: 'gris', label: 'No quiere esta semana' }
-        : { color: 'rojo', label: 'Sin pedido esta semana' }
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!nombre.trim()) {
+      setError('El nombre es obligatorio.')
+      return
     }
-    const montado = pedidosCliente.some((p) => p.estado !== 'elaboracion')
-    return montado
-      ? { color: 'verde', label: 'Pedido montado' }
-      : { color: 'naranja', label: 'Pedido subido, sin montar' }
+    if (tipoEntrega === 'propio' && !direccion.trim()) {
+      setError('La dirección es obligatoria para clientes de reparto propio.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      let lat = initial?.lat ?? null
+      let lng = initial?.lng ?? null
+      if (tipoEntrega === 'propio' && direccion.trim()) {
+        // Solo volvemos a geocodificar si la dirección ha cambiado o no tenía coordenadas
+        if (!lat || !lng || direccion.trim() !== initial?.direccion) {
+          const coords = await geocodeAddress(direccion.trim())
+          if (!coords) {
+            setError('No he podido localizar esa dirección en el mapa. Revísala e inténtalo de nuevo.')
+            setSaving(false)
+            return
+          }
+          lat = coords.lat
+          lng = coords.lng
+        }
+      }
+      await onSave({
+        ...(initial?.id ? { id: initial.id } : {}),
+        nombre: nombre.trim(),
+        direccion: direccion.trim(),
+        telefono: telefono.trim(),
+        tipoEntrega,
+        dias: dias.trim(),
+        horario: horario.trim(),
+        notas: notas.trim(),
+        lat,
+        lng,
+      })
+    } catch (err) {
+      setError(err.message || 'No se pudo guardar el cliente.')
+      setSaving(false)
+    }
   }
-
-  const filtered = clients.filter((c) => c.nombre.toLowerCase().includes(filter.trim().toLowerCase()))
-  const ordenColor = { rojo: 0, naranja: 1, verde: 2, gris: 3 }
-  const sorted = [...filtered].sort((a, b) => {
-    const ea = estadoCliente(a)
-    const eb = estadoCliente(b)
-    return ordenColor[ea.color] - ordenColor[eb.color] || a.nombre.localeCompare(b.nombre, 'es')
-  })
-
-  const counts = sorted.reduce((acc, c) => {
-    const color = estadoCliente(c).color
-    acc[color] = (acc[color] || 0) + 1
-    return acc
-  }, {})
 
   return (
-    <div className="weekly-status">
-      <div className="weekly-status-nav">
-        <button type="button" className="btn-icon" onClick={() => setWeekAnchor(addDaysISO(weekAnchor, -7))} aria-label="Semana anterior">‹</button>
-        <span className="weekly-status-range">{formatWeekLabel(weekAnchor)}</span>
-        <button type="button" className="btn-icon" onClick={() => setWeekAnchor(addDaysISO(weekAnchor, 7))} aria-label="Semana siguiente">›</button>
-        <button type="button" className="btn-link" onClick={() => setWeekAnchor(todayISO())}>Hoy</button>
-      </div>
+    <div className="modal-backdrop" onClick={onCancel}>
+      <form className="modal client-form" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
+        <h3>{initial ? 'Editar cliente' : 'Nuevo cliente'}</h3>
 
-      <div className="weekly-status-legend">
-        <span className="weekly-dot weekly-dot--rojo" /> Sin pedido ({counts.rojo || 0})
-        <span className="weekly-dot weekly-dot--naranja" /> Subido ({counts.naranja || 0})
-        <span className="weekly-dot weekly-dot--verde" /> Montado ({counts.verde || 0})
-        <span className="weekly-dot weekly-dot--gris" /> No quiere ({counts.gris || 0})
-      </div>
+        <label className="field-label">Nombre</label>
+        <input
+          className="field-input"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          placeholder="Restaurante Casa Pepa"
+          autoFocus
+        />
 
-      <input
-        className="field-input"
-        placeholder="Buscar cliente…"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-      />
+        <label className="field-label">Tipo de entrega</label>
+        <div className="pill-tabs pill-tabs--compact">
+          <button
+            type="button"
+            className={`pill-tab ${tipoEntrega === 'propio' ? 'pill-tab--active' : ''}`}
+            onClick={() => setTipoEntrega('propio')}
+          >
+            Reparto propio
+          </button>
+          <button
+            type="button"
+            className={`pill-tab ${tipoEntrega === 'agencia' ? 'pill-tab--active' : ''}`}
+            onClick={() => setTipoEntrega('agencia')}
+          >
+            Agencia de envío
+          </button>
+        </div>
 
-      {loading && <p className="office-status-muted">Cargando…</p>}
+        <label className="field-label">
+          Dirección{tipoEntrega === 'agencia' ? ' (opcional)' : ''}
+        </label>
+        <input
+          className="field-input"
+          value={direccion}
+          onChange={(e) => setDireccion(e.target.value)}
+          placeholder="Avinguda del Mar 22, Rafelbunyol"
+        />
 
-      <div className="weekly-status-list">
-        {sorted.map((c) => {
-          const estado = estadoCliente(c)
-          return (
-            <div key={c.id} className="weekly-status-row">
-              <span className={`weekly-dot weekly-dot--${estado.color}`} />
-              <div className="weekly-status-row-body">
-                <div className="weekly-status-row-name">{c.nombre}</div>
-                <div className="office-status-muted">{estado.label}</div>
-              </div>
-              {(estado.color === 'rojo' || estado.color === 'gris') && (
-                <button
-                  type="button"
-                  className="btn-link"
-                  onClick={() => toggleOmitido(c.id, estado.color === 'rojo')}
-                >
-                  {estado.color === 'rojo' ? 'No quiere esta semana' : 'Sí quiere'}
-                </button>
-              )}
-            </div>
-          )
-        })}
-      </div>
+        <label className="field-label">Teléfono (opcional)</label>
+        <input
+          className="field-input"
+          value={telefono}
+          onChange={(e) => setTelefono(e.target.value)}
+          placeholder="600111222"
+        />
+
+        <div className="field-row">
+          <div>
+            <label className="field-label">Días habituales (opcional)</label>
+            <input
+              className="field-input"
+              value={dias}
+              onChange={(e) => setDias(e.target.value)}
+              placeholder="L, X, J"
+            />
+          </div>
+          <div>
+            <label className="field-label">Horario (opcional)</label>
+            <input
+              className="field-input"
+              value={horario}
+              onChange={(e) => setHorario(e.target.value)}
+              placeholder="9:00-12:00"
+            />
+          </div>
+        </div>
+
+        <label className="field-label">Notas (opcional)</label>
+        <input
+          className="field-input"
+          value={notas}
+          onChange={(e) => setNotas(e.target.value)}
+          placeholder="Entrar por la puerta lateral"
+        />
+
+        {error && <p className="upload-error">{error}</p>}
+
+        <div className="modal-actions">
+          <button type="button" className="btn-ghost btn-ghost--dark" onClick={onCancel} disabled={saving}>
+            Cancelar
+          </button>
+          <button type="submit" className="btn-primary btn-primary--small" disabled={saving}>
+            {saving ? 'Localizando…' : 'Guardar'}
+          </button>
+        </div>
+      </form>
     </div>
   )
 }
