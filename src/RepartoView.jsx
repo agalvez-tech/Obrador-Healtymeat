@@ -11,13 +11,16 @@ function estadoEnRuta(pedido, isInRoute) {
   if (pedido.estado === 'enviado') {
     return { label: '✓ Enviado y firmado', tone: 'done' }
   }
-  if (pedido.estado === 'lista_para_repartir' && isInRoute) {
-    return pedido.albaranPdf
+  if (pedido.estado === 'ok_albaran') {
+    return isInRoute
       ? { label: 'OK reparto — con albarán', tone: 'ok' }
-      : { label: 'OK reparto — pendiente de albarán', tone: 'warn' }
+      : { label: 'OK albarán, pendiente de reparto', tone: 'ok' }
+  }
+  if (pedido.estado === 'lista_para_repartir' && isInRoute) {
+    return { label: 'En ruta — pendiente de albarán', tone: 'warn' }
   }
   if (pedido.estado === 'lista_para_repartir') {
-    return { label: 'OK envío', tone: 'info' }
+    return { label: 'OK montado', tone: 'info' }
   }
   return { label: 'En producción', tone: 'muted' }
 }
@@ -170,6 +173,11 @@ export default function RepartoView() {
     reader.readAsDataURL(file)
   }
 
+  async function handleNumeroAlbaran(pedidoId, numeroAlbaran) {
+    const updated = await api.updatePedido({ id: pedidoId, numeroAlbaran })
+    setPedidosDia((prev) => prev.map((p) => (p.id === pedidoId ? updated : p)))
+  }
+
   const entregados = route?.stops?.filter((s) => s.entregado).length || 0
   const totalRuta = route?.stops?.length || 0
 
@@ -274,6 +282,7 @@ export default function RepartoView() {
                         />
                       </>
                     )}
+                    <NumeroAlbaranField pedido={p} onSave={handleNumeroAlbaran} />
                   </div>
                 </div>
               </div>
@@ -290,5 +299,18 @@ export default function RepartoView() {
         </button>
       </div>
     </div>
+  )
+}
+
+function NumeroAlbaranField({ pedido, onSave }) {
+  const [value, setValue] = useState(pedido.numeroAlbaran || '')
+  return (
+    <input
+      className="field-input field-input--compact numero-albaran-input"
+      placeholder="Nº de albarán (opcional)"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => onSave(pedido.id, value.trim())}
+    />
   )
 }

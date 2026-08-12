@@ -6,7 +6,8 @@ import { openDataUrlInNewTab } from './utils/openDataUrl.js'
 
 const ESTADOS = [
   { key: 'elaboracion', label: 'En producción' },
-  { key: 'lista_para_repartir', label: 'OK envío' },
+  { key: 'lista_para_repartir', label: 'OK montado' },
+  { key: 'ok_albaran', label: 'OK albarán' },
   { key: 'enviado', label: 'Enviado' },
 ]
 
@@ -110,7 +111,9 @@ export default function PedidosView() {
 function PedidoCard({ pedido, productos, onSave, onDelete }) {
   const [lineas, setLineas] = useState(pedido.lineas || [])
   const [numeroPedido, setNumeroPedido] = useState(pedido.numeroPedido || '')
+  const [numeroAlbaran, setNumeroAlbaran] = useState(pedido.numeroAlbaran || '')
   const [saving, setSaving] = useState(false)
+  const albaranInputRef = useRef(null)
 
   const isAgencia = pedido.tipoEntrega === 'agencia'
   const puedeConfirmar =
@@ -128,6 +131,18 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
 
   function quitarLinea(id) {
     setLineas((prev) => prev.filter((l) => l.id !== id))
+  }
+
+  function moverLinea(id, direccion) {
+    setLineas((prev) => {
+      const idx = prev.findIndex((l) => l.id === id)
+      const nuevoIdx = idx + direccion
+      if (idx === -1 || nuevoIdx < 0 || nuevoIdx >= prev.length) return prev
+      const next = [...prev]
+      ;[next[idx], next[nuevoIdx]] = [next[nuevoIdx], next[idx]]
+      onSave(pedido, { lineas: next })
+      return next
+    })
   }
 
   async function guardarLineas() {
@@ -148,9 +163,26 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
     setSaving(false)
   }
 
-  async function revertir() {
+  async function subirAlbaran(file) {
     setSaving(true)
-    await onSave(pedido, { estado: 'elaboracion' })
+    const reader = new FileReader()
+    reader.onload = async () => {
+      await onSave(pedido, { albaranPdf: reader.result })
+      setSaving(false)
+    }
+    reader.onerror = () => setSaving(false)
+    reader.readAsDataURL(file)
+  }
+
+  async function guardarNumeroAlbaran() {
+    setSaving(true)
+    await onSave(pedido, { numeroAlbaran: numeroAlbaran.trim() })
+    setSaving(false)
+  }
+
+  async function revertir(destino) {
+    setSaving(true)
+    await onSave(pedido, { estado: destino })
     setSaving(false)
   }
 
@@ -187,6 +219,7 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
           {!expandido && (
             <div className="pedido-card-resumen">
               {resumenLineas}
+              {pedido.estado === 'ok_albaran' && <span className="pedido-resumen-firmado"> · 📄 con albarán</span>}
               {pedido.estado === 'enviado' && <span className="pedido-resumen-firmado"> · ✓ firmado</span>}
             </div>
           )}
@@ -221,21 +254,74 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
             <AlbaranStatus pedido={pedido} />
           )}
 
+          {pedido.tipoEntrega === 'propio' && pedido.estado === 'lista_para_repartir' && !pedido.albaranPdf && (
+            <div className="albaran-upload-inline">
+              <button type="button" className="btn-secondary" onClick={() => albaranInputRef.current?.click()} disabled={saving}>
+                {saving ? 'Subiendo…' : '+ Subir albarán y pasar a OK albarán'}
+              </button>
+              <input
+                ref={albaranInputRef}
+                type="file"
+                accept="application/pdf"
+                style={{ display: 'none' }}
+                onChange={(e) => e.target.files?.[0] && subirAlbaran(e.target.files[0])}
+              />
+            </div>
+          )}
+
+          {pedido.tipoEntrega === 'propio' && pedido.albaranPdf && (
+            <div>
+              <label className="field-label">Nº de albarán (opcional)</label>
+              <input
+                className="field-input field-input--compact"
+                placeholder="Referencia del albarán"
+                value={numeroAlbaran}
+                disabled={pedido.estado === 'enviado'}
+                onChange={(e) => setNumeroAlbaran(e.target.value)}
+                onBlur={guardarNumeroAlbaran}
+              />
+            </div>
+          )}
+
           <div className="lineas-pedido">
-            {lineas.map((linea) => (
+            {lineas.map((linea, idx) => (
               <div key={linea.id} className="linea-pedido">
-                <select
-                  className="field-input field-input--compact linea-producto"
-                  value={linea.producto}
-                  disabled={soloLectura}
-                  onChange={(e) => actualizarLinea(linea.id, { producto: e.target.value })}
-                  onBlur={guardarLineas}
-                >
-                  <option value="">{linea.producto ? linea.producto : 'Selecciona el producto…'}</option>
-                  {productos.map((p) => (
-                    <option key={p.id} value={p.nombre}>{p.nombre}</option>
-                  ))}
-                </select>
+                <div className="linea-pedido-top">
+                  <select
+                    className="field-input field-input--compact linea-producto"
+                    value={linea.producto}
+                    disabled={soloLectura}
+                    onChange={(e) => actualizarLinea(linea.id, { producto: e.target.value })}
+                    onBlur={guardarLineas}
+                  >
+                    <option value="">{linea.producto ? linea.producto : 'Selecciona el producto…'}</option>
+                    {productos.map((p) => (
+                      <option key={p.id} value={p.nombre}>{p.nombre}</option>
+                    ))}
+                  </select>
+                  {!soloLectura && (
+                    <div className="linea-reorder">
+                      <button
+                        type="button"
+                        className="btn-icon"
+                        onClick={() => moverLinea(linea.id, -1)}
+                        disabled={idx === 0}
+                        aria-label="Subir línea"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-icon"
+                        onClick={() => moverLinea(linea.id, 1)}
+                        disabled={idx === lineas.length - 1}
+                        aria-label="Bajar línea"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  )}
+                </div>
                 {linea.textoOriginal && (
                   <div className="linea-original">del pedido: "{linea.textoOriginal}"</div>
                 )}
@@ -280,17 +366,22 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
 
       {pedido.estado === 'elaboracion' && (
         <button className="btn-primary btn-primary--small" disabled={!puedeConfirmar || saving} onClick={confirmarOk}>
-          {saving ? 'Guardando…' : 'OK envío'}
+          {saving ? 'Guardando…' : 'OK montado'}
         </button>
       )}
 
       {pedido.estado !== 'elaboracion' && (
         <div className="pedido-card-actions">
           <span className="office-status-muted">
-            {pedido.estado === 'lista_para_repartir' ? 'OK envío, pendiente de reparto' : 'Entregado'}
+            {pedido.estado === 'lista_para_repartir' && 'OK montado, pendiente de albarán'}
+            {pedido.estado === 'ok_albaran' && 'OK albarán, pendiente de reparto'}
+            {pedido.estado === 'enviado' && 'Entregado'}
           </span>
           {pedido.estado === 'lista_para_repartir' && (
-            <button className="btn-link" onClick={revertir} disabled={saving}>Revertir</button>
+            <button className="btn-link" onClick={() => revertir('elaboracion')} disabled={saving}>Revertir</button>
+          )}
+          {pedido.estado === 'ok_albaran' && (
+            <button className="btn-link" onClick={() => revertir('lista_para_repartir')} disabled={saving}>Revertir</button>
           )}
         </div>
       )}
@@ -305,6 +396,7 @@ function AlbaranStatus({ pedido }) {
     return (
       <div className="albaran-status albaran-status--firmado">
         <div>✓ Entregado y firmado{fecha ? ` · ${fecha}` : ''}</div>
+        {pedido.numeroAlbaran && <div className="office-status-muted">Nº albarán: {pedido.numeroAlbaran}</div>}
         <div className="albaran-status-links">
           {albaran && (
             <button type="button" className="btn-link" onClick={() => openDataUrlInNewTab(albaran)}>
@@ -324,7 +416,8 @@ function AlbaranStatus({ pedido }) {
   if (pedido.albaranPdf) {
     return (
       <div className="albaran-status">
-        📄 Albarán adjunto, pendiente de que el cliente firme en la entrega. —{' '}
+        📄 Albarán adjunto{pedido.numeroAlbaran ? ` (Nº ${pedido.numeroAlbaran})` : ''}, pendiente de que el
+        cliente firme en la entrega. —{' '}
         <button type="button" className="btn-link" onClick={() => openDataUrlInNewTab(pedido.albaranPdf)}>
           Ver albarán
         </button>
@@ -332,11 +425,9 @@ function AlbaranStatus({ pedido }) {
     )
   }
 
-  return (
-    <div className="albaran-status albaran-status--pendiente">
-      ⚠ Todavía no se ha adjuntado el albarán — se puede añadir desde la pestaña Reparto.
-    </div>
-  )
+  // Todavía "OK montado" sin albarán: se cubre con el botón de subida
+  // inline en la propia tarjeta, así que aquí no hace falta ningún aviso.
+  return null
 }
 
 function PedidoOrigenPreview({ origen }) {

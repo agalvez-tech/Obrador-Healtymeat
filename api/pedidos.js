@@ -62,6 +62,7 @@ export default async function handler(req, res) {
         tipoEntrega: cliente.tipoEntrega || 'propio',
         origen: body.origen, // { tipo: 'texto'|'imagen'|'pdf', contenido }
         numeroPedido: body.numeroPedido || '',
+        numeroAlbaran: '',
         fechaSubida: new Date().toISOString().slice(0, 10),
         fechaReparto,
         estado: 'elaboracion',
@@ -86,6 +87,14 @@ export default async function handler(req, res) {
       if (!existing) return res.status(404).json({ error: 'Pedido no encontrado' })
 
       const updated = { ...existing, ...body, actualizadoAt: Date.now() }
+
+      // Si se adjunta el albarán mientras el pedido está "OK montado", sube
+      // solo a "OK albarán" — así se puede ver de un vistazo a quién le
+      // falta subirlo. Esto pasa tanto si se sube desde Pedidos como desde Reparto.
+      if (body.albaranPdf && existing.estado === 'lista_para_repartir') {
+        updated.estado = 'ok_albaran'
+      }
+
       if (body.estado === 'enviado' && existing.estado !== 'enviado') {
         updated.entregadoAt = Date.now()
       }

@@ -32,22 +32,37 @@ oficina y repartidor ven lo mismo en tiempo real desde dispositivos distintos.
    **"En producción"** — y ya aparece en la pestaña Reparto de ese día,
    aunque todavía no esté preparado.
 3. Quien prepara el pedido revisa cada línea (**producto**, **cantidad**,
-   **lote**) y pulsa **"OK envío"** cuando todas las líneas están
+   **lote**) y pulsa **"OK montado"** cuando todas las líneas están
    completas — el lote no se rellena solo, hay que escribirlo a mano; si
-   falta en alguna línea, el botón "OK envío" se queda desactivado.
-   A partir de ahí pasa a
-   **"OK envío"**.
-4. Si el cliente es de **reparto propio**, ese pedido sigue viéndose en la
-   pestaña Reparto del día que le toque, ahora ya preparado. Si es de
-   **agencia de envío**, se queda aquí mismo como terminado — no hace falta
-   agendarlo en ningún sitio, ya que la agencia se encarga por su cuenta.
-5. Los pedidos de "En producción" y "OK envío" aparecen
+   falta en alguna línea, el botón "OK montado" se queda desactivado.
+4. En "OK montado" aparece un botón **"+ Subir albarán y pasar a OK
+   albarán"** — se puede hacer aquí mismo, en Pedidos, sin ir a la pestaña
+   Reparto (aunque también se puede subir desde allí, funciona igual). En
+   cuanto se adjunta el PDF, el pedido pasa solo a **"OK albarán"**. Así se
+   puede ver de un vistazo, filtrando por la pestaña "OK montado", a qué
+   pedidos les falta subir el albarán todavía.
+5. Si el cliente es de **reparto propio**, ese pedido sigue viéndose en la
+   pestaña Reparto del día que le toque. Si es de **agencia de envío**, se
+   queda terminado en "OK montado" — no necesita albarán ni pasar por
+   Reparto, ya que la agencia se encarga del envío por su cuenta.
+6. Los pedidos de "En producción", "OK montado" y "OK albarán" aparecen
    plegados, mostrando solo el cliente y un resumen — toca la cabecera de
    cada uno para desplegarlo y ver/editar sus líneas.
-6. **Nº de pedido**: si el PDF trae una referencia tipo "Pedido de compra Nº
+7. **Nº de pedido**: si el PDF trae una referencia tipo "Pedido de compra Nº
    P-4-2026/000324", se detecta sola y se guarda; si no la detecta, o no es
    un PDF, el campo queda vacío y se puede escribir a mano — nunca es
-   obligatorio.
+   obligatorio. El **Nº de albarán** funciona igual pero se rellena siempre
+   a mano, junto al PDF adjunto.
+8. Las líneas de producto se pueden **reordenar con ▲▼** (junto al
+   desplegable de cada línea) para que salgan en el orden que quieras.
+
+### Alias de productos
+
+Si el texto del pedido no se parece nada al nombre del producto en tu
+catálogo (por ejemplo, "pollo empanado crunchy" → "Pollo Voltereta"), se
+puede forzar la coincidencia añadiendo una entrada a `ALIAS_FRASE` en
+`src/utils/pdfOrderParser.js`. Ya dejé metido ese caso; si aparecen más
+así, dímelos y los añado igual.
 
 ## Pestaña Producción
 
@@ -70,13 +85,16 @@ puedas organizar la ruta con antelación sin depender de que ya estén listos.
 Cada uno muestra en qué punto está:
 
 - **En producción** — el pedido ha entrado pero todavía no le han puesto
-  "OK envío" en la pestaña Pedidos.
-- **OK envío** — ya está preparado (lote y cantidad de cada línea puestos),
-  pero todavía no se ha incluido en una ruta guardada.
-- **OK reparto — pendiente de albarán** — ya está dentro de una ruta
-  guardada, pero le falta el PDF del albarán.
-- **OK reparto — con albarán** — todo listo, solo falta que el repartidor lo
-  entregue y lo firmen.
+  "OK montado" en la pestaña Pedidos.
+- **OK montado** — ya está preparado (lote y cantidad de cada línea
+  puestos), pero todavía no se ha incluido en una ruta guardada.
+- **En ruta — pendiente de albarán** — ya está dentro de una ruta guardada,
+  pero le falta el PDF del albarán (se puede subir desde aquí o desde
+  Pedidos).
+- **OK albarán, pendiente de reparto** — ya tiene el albarán, pero todavía
+  no se ha incluido en una ruta guardada.
+- **OK reparto — con albarán** — todo listo: incluido en la ruta y con
+  albarán, solo falta que el repartidor lo entregue y lo firmen.
 - **✓ Enviado y firmado** — entregado, con la firma ya archivada.
 
 Todos vienen marcados por defecto para la ruta — desmarca los que no toquen
@@ -86,11 +104,16 @@ todavía si quieres dejarlos para otro día.
    Museros** (vuestro almacén), así que no hace falta escribirlo cada vez.
    Si alguna vez cambia, se edita con "Cambiar".
 2. Por cada pedido puedes **"+ Añadir albarán (PDF)"** en cualquier momento
-   — no hace falta esperar a que esté "OK envío".
+   — no hace falta esperar a que esté "OK montado" (aunque si no lo está,
+   este mismo botón existe también en Pedidos). Justo debajo hay un campo
+   opcional para el **Nº de albarán** (la referencia del propio albarán, no
+   la del pedido), que se ve luego desde Pedidos y desde el móvil del
+   repartidor.
 3. **"Optimizar y guardar ruta"**: calcula el orden más corto por carretera
    con los pedidos marcados (aunque no estén preparados todavía) y lo manda
-   al móvil del repartidor. Al pasar a "OK envío" un pedido que ya estaba en
-   la ruta, su estado sube solo a "OK reparto" sin tener que rehacer nada.
+   al móvil del repartidor. El estado de cada pedido sigue subiendo solo a
+   medida que se completan los pasos (montado, albarán, entregado), sin
+   tener que rehacer la ruta cada vez.
 4. Aquí mismo ves cuántos van entregados, actualizado solo cada 12 segundos.
 
 ## Pestaña Clientes
@@ -117,6 +140,15 @@ planifica rutas. Con ‹ › se cambia de semana, y "Hoy" vuelve al día actual.
 Solo se puede marcar como entregado o firmar en el día de **hoy**; al mirar
 otro día (pasado o futuro) las paradas se ven en modo consulta, con una
 etiqueta de "Entregado" o "Pendiente" en vez de los botones de acción.
+
+## Cómo llegar a cada parada (modo Repartidor)
+
+Cada parada tiene ahora un enlace **"🧭 Cómo llegar (Google Maps)"** justo
+debajo de la dirección. Al tocarlo, se abre Google Maps (la app si está
+instalada en el móvil, o la web si no) con la navegación real hasta ese
+punto — con tráfico, voz, todo lo de Google Maps normal. El mapa propio de
+la app sigue estando para ver de un vistazo toda la ruta y tu posición, pero
+para que te lleve paso a paso usa este enlace.
 
 ## Cómo firma el cliente el albarán (modo Repartidor)
 
@@ -165,7 +197,7 @@ se cambia luego con "Cambiar modo" en la cabecera.
 - **Albaranes y firmas**: se guardan como PDF/imagen dentro de la propia base
   de datos (Upstash Redis), sin necesidad de un servicio de almacenamiento
   aparte. Esto es sencillo pero tiene un límite práctico: evita subir
-  álbaranes en PDF muy pesados (escaneados a alta resolución, muchas
+  albaranes en PDF muy pesados (escaneados a alta resolución, muchas
   páginas) — con un PDF de una página tipo albarán normal no hay problema,
   pero archivos de varios MB podrían fallar al subir por límites del propio
   Vercel. Si con el tiempo esto da problemas, se puede migrar a un servicio

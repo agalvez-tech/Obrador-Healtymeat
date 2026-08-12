@@ -372,6 +372,12 @@ button {
   margin-bottom: 6px;
 }
 
+.stop-card-maps-link {
+  display: inline-block;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+}
+
 .stop-card-items {
   font-size: 13.5px;
   margin-bottom: 4px;
@@ -1014,6 +1020,14 @@ button {
 
 .albaran-row {
   margin-top: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.numero-albaran-input {
+  max-width: 220px;
+  margin: 0;
 }
 
 .albaran-status {
@@ -1033,6 +1047,13 @@ button {
 
 .albaran-status--pendiente {
   color: var(--hm-gold-dark);
+}
+
+.albaran-upload-inline {
+  background: #fdf6e8;
+  border: 1px dashed var(--hm-gold);
+  border-radius: 10px;
+  padding: 10px;
 }
 
 .albaran-status-links {
@@ -1059,6 +1080,32 @@ button {
 
 .linea-producto {
   margin: 0;
+}
+
+.linea-pedido-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.linea-pedido-top .linea-producto {
+  flex: 1;
+}
+
+.linea-reorder {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.linea-reorder .btn-icon {
+  font-size: 11px;
+  padding: 2px 6px;
+  line-height: 1;
+}
+
+.linea-reorder .btn-icon:disabled {
+  opacity: 0.25;
 }
 
 .linea-original {

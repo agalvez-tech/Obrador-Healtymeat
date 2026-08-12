@@ -10,6 +10,15 @@ const SYNONYMS = {
   HAMBURGUESAS: 'BURGER',
 }
 
+// Alias de frase completa para casos donde el nombre del pedido no se
+// parece nada al del catálogo por palabras sueltas (por ejemplo, "pollo
+// empanado crunchy" es, para nosotros, "Pollo Voltereta"). Se comprueban
+// antes del cálculo genérico por palabras, y tienen prioridad absoluta.
+// Para añadir uno nuevo: { patron: /texto que viene en el pedido/i, nombre: 'NOMBRE EXACTO DEL CATÁLOGO' }
+const ALIAS_FRASE = [
+  { patron: /POLLO.*CRUNCHY|CRUNCHY.*POLLO|POLLO\s+EMPANADO/i, nombre: 'POLLO VOLTERETA' },
+]
+
 function normalize(str) {
   return String(str || '')
     .normalize('NFD')
@@ -44,6 +53,13 @@ function similarityScore(candidateWords, catalogWords) {
 // texto libre de una línea del pedido. Devuelve null si no hay suficiente
 // confianza, para que la persona lo seleccione a mano.
 export function matchProductoToCatalog(textoProducto, catalogo, threshold = 0.6) {
+  for (const alias of ALIAS_FRASE) {
+    if (alias.patron.test(textoProducto)) {
+      const producto = catalogo.find((p) => p.nombre.toUpperCase() === alias.nombre.toUpperCase())
+      if (producto) return { producto, score: 1 }
+    }
+  }
+
   const candidateWords = normalize(textoProducto)
   let best = null
   let bestScore = 0

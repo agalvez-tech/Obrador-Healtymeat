@@ -8,6 +8,11 @@ import { openDataUrlInNewTab } from './utils/openDataUrl.js'
 
 const ROUTE_POLL_MS = 15000
 
+function googleMapsDirectionsUrl(stop) {
+  const destino = stop.lat && stop.lng ? `${stop.lat},${stop.lng}` : encodeURIComponent(stop.direccion || '')
+  return `https://www.google.com/maps/dir/?api=1&destination=${destino}&travelmode=driving`
+}
+
 export default function DriverView({ onChangeRole }) {
   const [clients, setClients] = useState([])
   const [pedidosById, setPedidosById] = useState({})
@@ -314,6 +319,15 @@ function StopCard({ stop, pending, error, soloLectura, onToggleSinFirma, onFirma
       <div className="stop-card-body">
         <div className="stop-card-name">{stop.nombre}</div>
         <div className="stop-card-address">{stop.direccion}</div>
+        <a
+          className="btn-link stop-card-maps-link"
+          href={googleMapsDirectionsUrl(stop)}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+        >
+          🧭 Cómo llegar (Google Maps)
+        </a>
         <div className="stop-card-items">
           {(pedido.lineas || []).map((l) => (
             <div key={l.id}>📦 {l.producto || '(sin producto)'}: {l.cantidad} {l.unidad} · lote {l.lote}</div>
@@ -331,7 +345,7 @@ function StopCard({ stop, pending, error, soloLectura, onToggleSinFirma, onFirma
             className="btn-link"
             onClick={(e) => { e.stopPropagation(); openDataUrlInNewTab(pedido.albaranFirmado || pedido.albaranPdf) }}
           >
-            📄 Ver albarán
+            📄 Ver albarán{pedido.numeroAlbaran ? ` (Nº ${pedido.numeroAlbaran})` : ''}
           </button>
         )}
         {error && <div className="stop-card-warning">{error}</div>}
