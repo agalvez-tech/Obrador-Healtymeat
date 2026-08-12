@@ -3,6 +3,7 @@ import { api } from './utils/api.js'
 import { extractTextFromPdf } from './utils/pdfExtract.js'
 import { extractLineasConCatalogo, extractNumeroPedido } from './utils/pdfOrderParser.js'
 import { openDataUrlInNewTab } from './utils/openDataUrl.js'
+import DragReorderList from './DragReorderList.jsx'
 
 const ESTADOS = [
   { key: 'elaboracion', label: 'En producción' },
@@ -133,18 +134,6 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
     setLineas((prev) => prev.filter((l) => l.id !== id))
   }
 
-  function moverLinea(id, direccion) {
-    setLineas((prev) => {
-      const idx = prev.findIndex((l) => l.id === id)
-      const nuevoIdx = idx + direccion
-      if (idx === -1 || nuevoIdx < 0 || nuevoIdx >= prev.length) return prev
-      const next = [...prev]
-      ;[next[idx], next[nuevoIdx]] = [next[nuevoIdx], next[idx]]
-      onSave(pedido, { lineas: next })
-      return next
-    })
-  }
-
   async function guardarLineas() {
     setSaving(true)
     await onSave(pedido, { lineas })
@@ -172,6 +161,12 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
     }
     reader.onerror = () => setSaving(false)
     reader.readAsDataURL(file)
+  }
+
+  async function marcarOkAlbaranManual() {
+    setSaving(true)
+    await onSave(pedido, { estado: 'ok_albaran', sinAlbaran: true })
+    setSaving(false)
   }
 
   async function guardarNumeroAlbaran() {
@@ -250,11 +245,11 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
             />
           </div>
 
-          {pedido.tipoEntrega === 'propio' && pedido.estado !== 'elaboracion' && (
+          {pedido.estado !== 'elaboracion' && (
             <AlbaranStatus pedido={pedido} />
           )}
 
-          {pedido.tipoEntrega === 'propio' && pedido.estado === 'lista_para_repartir' && !pedido.albaranPdf && (
+          {pedido.estado === 'lista_para_repartir' && !pedido.albaranPdf && (
             <div className="albaran-upload-inline">
               <button type="button" className="btn-secondary" onClick={() => albaranInputRef.current?.click()} disabled={saving}>
                 {saving ? 'Subiendo…' : '+ Subir albarán y pasar a OK albarán'}
@@ -266,10 +261,14 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
                 style={{ display: 'none' }}
                 onChange={(e) => e.target.files?.[0] && subirAlbaran(e.target.files[0])}
               />
+              <div className="albaran-upload-inline-or">o, si este pedido no lleva albarán:</div>
+              <button type="button" className="btn-link" onClick={marcarOkAlbaranManual} disabled={saving}>
+                Pasar a OK albarán sin subir nada
+              </button>
             </div>
           )}
 
-          {pedido.tipoEntrega === 'propio' && pedido.albaranPdf && (
+          {pedido.albaranPdf && (
             <div>
               <label className="field-label">Nº de albarán (opcional)</label>
               <input
@@ -284,79 +283,65 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
           )}
 
           <div className="lineas-pedido">
-            {lineas.map((linea, idx) => (
-              <div key={linea.id} className="linea-pedido">
-                <div className="linea-pedido-top">
-                  <select
-                    className="field-input field-input--compact linea-producto"
-                    value={linea.producto}
-                    disabled={soloLectura}
-                    onChange={(e) => actualizarLinea(linea.id, { producto: e.target.value })}
-                    onBlur={guardarLineas}
-                  >
-                    <option value="">{linea.producto ? linea.producto : 'Selecciona el producto…'}</option>
-                    {productos.map((p) => (
-                      <option key={p.id} value={p.nombre}>{p.nombre}</option>
-                    ))}
-                  </select>
-                  {!soloLectura && (
-                    <div className="linea-reorder">
-                      <button
-                        type="button"
-                        className="btn-icon"
-                        onClick={() => moverLinea(linea.id, -1)}
-                        disabled={idx === 0}
-                        aria-label="Subir línea"
-                      >
-                        ▲
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-icon"
-                        onClick={() => moverLinea(linea.id, 1)}
-                        disabled={idx === lineas.length - 1}
-                        aria-label="Bajar línea"
-                      >
-                        ▼
-                      </button>
-                    </div>
+            <DragReorderList
+              items={lineas}
+              className="lineas-pedido-drag"
+              onReorder={(next) => { setLineas(next); onSave(pedido, { lineas: next }) }}
+              renderItem={(linea, dragHandleProps) => (
+                <div className="linea-pedido">
+                  <div className="linea-pedido-top">
+                    {!soloLectura && (
+                      <span className="drag-handle" onPointerDown={dragHandleProps} aria-label="Arrastrar para reordenar">⠿</span>
+                    )}
+                    <select
+                      className="field-input field-input--compact linea-producto"
+                      value={linea.producto}
+                      disabled={soloLectura}
+                      onChange={(e) => actualizarLinea(linea.id, { producto: e.target.value })}
+                      onBlur={guardarLineas}
+                    >
+                      <option value="">{linea.producto ? linea.producto : 'Selecciona el producto…'}</option>
+                      {productos.map((p) => (
+                        <option key={p.id} value={p.nombre}>{p.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {linea.textoOriginal && (
+                    <div className="linea-original">del pedido: "{linea.textoOriginal}"</div>
                   )}
+                  <div className="linea-cantidad-row">
+                    <input
+                      className="field-input field-input--compact"
+                      placeholder="Cantidad"
+                      value={linea.cantidad}
+                      disabled={soloLectura}
+                      onChange={(e) => actualizarLinea(linea.id, { cantidad: e.target.value })}
+                      onBlur={guardarLineas}
+                    />
+                    <select
+                      className="field-select"
+                      value={linea.unidad}
+                      disabled={soloLectura}
+                      onChange={(e) => { actualizarLinea(linea.id, { unidad: e.target.value }); guardarLineas() }}
+                    >
+                      <option value="uds">uds</option>
+                      <option value="kg">kg</option>
+                    </select>
+                    <input
+                      className="field-input field-input--compact"
+                      placeholder="Lote (obligatorio)"
+                      value={linea.lote}
+                      disabled={soloLectura}
+                      onChange={(e) => actualizarLinea(linea.id, { lote: e.target.value })}
+                      onBlur={guardarLineas}
+                    />
+                    {!soloLectura && (
+                      <button type="button" className="btn-icon" onClick={() => quitarLinea(linea.id)} aria-label="Quitar línea">🗑</button>
+                    )}
+                  </div>
                 </div>
-                {linea.textoOriginal && (
-                  <div className="linea-original">del pedido: "{linea.textoOriginal}"</div>
-                )}
-                <div className="linea-cantidad-row">
-                  <input
-                    className="field-input field-input--compact"
-                    placeholder="Cantidad"
-                    value={linea.cantidad}
-                    disabled={soloLectura}
-                    onChange={(e) => actualizarLinea(linea.id, { cantidad: e.target.value })}
-                    onBlur={guardarLineas}
-                  />
-                  <select
-                    className="field-select"
-                    value={linea.unidad}
-                    disabled={soloLectura}
-                    onChange={(e) => { actualizarLinea(linea.id, { unidad: e.target.value }); guardarLineas() }}
-                  >
-                    <option value="uds">uds</option>
-                    <option value="kg">kg</option>
-                  </select>
-                  <input
-                    className="field-input field-input--compact"
-                    placeholder="Lote (obligatorio)"
-                    value={linea.lote}
-                    disabled={soloLectura}
-                    onChange={(e) => actualizarLinea(linea.id, { lote: e.target.value })}
-                    onBlur={guardarLineas}
-                  />
-                  {!soloLectura && (
-                    <button type="button" className="btn-icon" onClick={() => quitarLinea(linea.id)} aria-label="Quitar línea">🗑</button>
-                  )}
-                </div>
-              </div>
-            ))}
+              )}
+            />
             {!soloLectura && (
               <button type="button" className="btn-link" onClick={añadirLinea}>+ Añadir línea de producto</button>
             )}
@@ -374,7 +359,8 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
         <div className="pedido-card-actions">
           <span className="office-status-muted">
             {pedido.estado === 'lista_para_repartir' && 'OK montado, pendiente de albarán'}
-            {pedido.estado === 'ok_albaran' && 'OK albarán, pendiente de reparto'}
+            {pedido.estado === 'ok_albaran' &&
+              (pedido.tipoEntrega === 'agencia' ? 'OK albarán — completado' : 'OK albarán, pendiente de reparto')}
             {pedido.estado === 'enviado' && 'Entregado'}
           </span>
           {pedido.estado === 'lista_para_repartir' && (
@@ -395,8 +381,11 @@ function AlbaranStatus({ pedido }) {
     const albaran = pedido.albaranFirmado || pedido.albaranPdf
     return (
       <div className="albaran-status albaran-status--firmado">
-        <div>✓ Entregado y firmado{fecha ? ` · ${fecha}` : ''}</div>
-        {pedido.numeroAlbaran && <div className="office-status-muted">Nº albarán: {pedido.numeroAlbaran}</div>}
+        <div>✓ Entregado{fecha ? ` · ${fecha}` : ''}</div>
+        {pedido.sinAlbaran && <div className="office-status-muted">Este pedido no llevaba albarán.</div>}
+        {!pedido.sinAlbaran && pedido.numeroAlbaran && (
+          <div className="office-status-muted">Nº albarán: {pedido.numeroAlbaran}</div>
+        )}
         <div className="albaran-status-links">
           {albaran && (
             <button type="button" className="btn-link" onClick={() => openDataUrlInNewTab(albaran)}>
@@ -413,11 +402,26 @@ function AlbaranStatus({ pedido }) {
     )
   }
 
-  if (pedido.albaranPdf) {
+  if (pedido.estado === 'ok_albaran' && pedido.sinAlbaran) {
+    const siguiente =
+      pedido.tipoEntrega === 'agencia'
+        ? 'Este pedido va por agencia, así que no necesita más pasos aquí.'
+        : 'pendiente de que el repartidor lo marque entregado.'
     return (
       <div className="albaran-status">
-        📄 Albarán adjunto{pedido.numeroAlbaran ? ` (Nº ${pedido.numeroAlbaran})` : ''}, pendiente de que el
-        cliente firme en la entrega. —{' '}
+        Este pedido se marcó como "OK albarán" sin adjuntar ningún PDF — {siguiente}
+      </div>
+    )
+  }
+
+  if (pedido.albaranPdf) {
+    const pendiente =
+      pedido.tipoEntrega === 'agencia'
+        ? 'pendiente de que la agencia lo recoja.'
+        : 'pendiente de que el cliente firme en la entrega.'
+    return (
+      <div className="albaran-status">
+        📄 Albarán adjunto{pedido.numeroAlbaran ? ` (Nº ${pedido.numeroAlbaran})` : ''}, {pendiente} —{' '}
         <button type="button" className="btn-link" onClick={() => openDataUrlInNewTab(pedido.albaranPdf)}>
           Ver albarán
         </button>

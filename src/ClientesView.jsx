@@ -3,8 +3,10 @@ import { api } from './utils/api.js'
 import { geocodeStops } from './utils/geocode.js'
 import { parseDeliveryCSV } from './utils/csv.js'
 import ClientForm from './ClientForm.jsx'
+import WeeklyClientStatus from './WeeklyClientStatus.jsx'
 
 export default function ClientesView() {
+  const [vista, setVista] = useState('lista') // 'lista' | 'semanal'
   const [clients, setClients] = useState([])
   const [loadingClients, setLoadingClients] = useState(true)
   const [formTarget, setFormTarget] = useState(null)
@@ -98,51 +100,62 @@ export default function ClientesView() {
         </div>
       </div>
 
-      {importProgress && <p className="office-status-muted">{importProgress}</p>}
-
       <div className="pill-tabs">
-        <button className={`pill-tab ${tipoFilter === 'todos' ? 'pill-tab--active' : ''}`} onClick={() => setTipoFilter('todos')}>Todos</button>
-        <button className={`pill-tab ${tipoFilter === 'propio' ? 'pill-tab--active' : ''}`} onClick={() => setTipoFilter('propio')}>Reparto propio</button>
-        <button className={`pill-tab ${tipoFilter === 'agencia' ? 'pill-tab--active' : ''}`} onClick={() => setTipoFilter('agencia')}>Agencia</button>
+        <button className={`pill-tab ${vista === 'lista' ? 'pill-tab--active' : ''}`} onClick={() => setVista('lista')}>Lista</button>
+        <button className={`pill-tab ${vista === 'semanal' ? 'pill-tab--active' : ''}`} onClick={() => setVista('semanal')}>Vista semanal</button>
       </div>
 
-      <input
-        className="field-input"
-        placeholder="Buscar por nombre o dirección…"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-      />
+      {vista === 'semanal' && <WeeklyClientStatus clients={clients} />}
 
-      {loadingClients && <p className="office-status-muted">Cargando clientes…</p>}
-      {!loadingClients && filteredClients.length === 0 && (
-        <p className="office-status-muted">No hay clientes que coincidan.</p>
-      )}
+      {vista === 'lista' && (
+        <>
+          {importProgress && <p className="office-status-muted">{importProgress}</p>}
 
-      <div className="client-list">
-        {filteredClients.map((c) => (
-          <div key={c.id} className="client-row">
-            <div className="client-row-body">
-              <div className="client-row-name">
-                {c.nombre}
-                <span className={`badge ${c.tipoEntrega === 'agencia' ? 'badge--agencia' : 'badge--propio'}`}>
-                  {c.tipoEntrega === 'agencia' ? 'Agencia' : 'Propio'}
-                </span>
-              </div>
-              {c.direccion && <div className="client-row-address">{c.direccion}</div>}
-              {(c.dias || c.horario) && (
-                <div className="client-row-schedule">
-                  {c.dias && <span className="client-row-days">{c.dias}</span>}
-                  {c.horario && <span>{c.horario}</span>}
-                </div>
-              )}
-            </div>
-            <div className="client-row-actions">
-              <button className="btn-icon" onClick={() => setFormTarget(c)} aria-label="Editar">✎</button>
-              <button className="btn-icon" onClick={() => handleDeleteClient(c.id)} aria-label="Eliminar">🗑</button>
-            </div>
+          <div className="pill-tabs">
+            <button className={`pill-tab ${tipoFilter === 'todos' ? 'pill-tab--active' : ''}`} onClick={() => setTipoFilter('todos')}>Todos</button>
+            <button className={`pill-tab ${tipoFilter === 'propio' ? 'pill-tab--active' : ''}`} onClick={() => setTipoFilter('propio')}>Reparto propio</button>
+            <button className={`pill-tab ${tipoFilter === 'agencia' ? 'pill-tab--active' : ''}`} onClick={() => setTipoFilter('agencia')}>Agencia</button>
           </div>
-        ))}
-      </div>
+
+          <input
+            className="field-input"
+            placeholder="Buscar por nombre o dirección…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+
+          {loadingClients && <p className="office-status-muted">Cargando clientes…</p>}
+          {!loadingClients && filteredClients.length === 0 && (
+            <p className="office-status-muted">No hay clientes que coincidan.</p>
+          )}
+
+          <div className="client-list">
+            {filteredClients.map((c) => (
+              <div key={c.id} className="client-row">
+                <div className="client-row-body">
+                  <div className="client-row-name">
+                    {c.nombre}
+                    <span className={`badge ${c.tipoEntrega === 'agencia' ? 'badge--agencia' : 'badge--propio'}`}>
+                      {c.tipoEntrega === 'agencia' ? 'Agencia' : 'Propio'}
+                    </span>
+                  </div>
+                  {c.direccion && <div className="client-row-address">{c.direccion}</div>}
+                  {(c.dias || c.horario) && (
+                    <div className="client-row-schedule">
+                      {c.dias && <span className="client-row-days">{c.dias}</span>}
+                      {c.horario && <span>{c.horario}</span>}
+                    </div>
+                  )}
+                </div>
+                <div className="client-row-actions">
+                  <button className="btn-icon" onClick={() => setFormTarget(c)} aria-label="Editar">✎</button>
+                  <button className="btn-icon" onClick={() => handleDeleteClient(c.id)} aria-label="Eliminar">🗑</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <input
         ref={fileInputRef}

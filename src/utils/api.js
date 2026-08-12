@@ -43,4 +43,8 @@ export const api = {
   getProduccion: (fecha) => req(`/produccion${fecha ? `?fecha=${fecha}` : ''}`),
   addProduccion: (entry) => req('/produccion', { method: 'POST', body: JSON.stringify(entry) }),
   deleteProduccion: (id) => req(`/produccion?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  getOmitidos: (semana) => req(`/omitidos?semana=${semana}`),
+  setOmitido: (semana, clienteId, omitido) =>
+    req('/omitidos', { method: 'POST', body: JSON.stringify({ semana, clienteId, omitido }) }),
 }

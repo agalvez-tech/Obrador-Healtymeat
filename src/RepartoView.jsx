@@ -4,17 +4,19 @@ import { todayISO, formatDateLong } from './utils/date.js'
 import { geocodeAddress } from './utils/geocode.js'
 import { optimizeRoute } from './utils/optimize.js'
 import { openDataUrlInNewTab } from './utils/openDataUrl.js'
+import DragReorderList from './DragReorderList.jsx'
 
 const POLL_MS = 12000
 
 function estadoEnRuta(pedido, isInRoute) {
   if (pedido.estado === 'enviado') {
-    return { label: '✓ Enviado y firmado', tone: 'done' }
+    return { label: '✓ Enviado', tone: 'done' }
   }
   if (pedido.estado === 'ok_albaran') {
+    const conAlbaran = pedido.sinAlbaran ? '(sin albarán)' : '— con albarán'
     return isInRoute
-      ? { label: 'OK reparto — con albarán', tone: 'ok' }
-      : { label: 'OK albarán, pendiente de reparto', tone: 'ok' }
+      ? { label: `OK reparto ${conAlbaran}`, tone: 'ok' }
+      : { label: `OK albarán ${pedido.sinAlbaran ? '(sin archivo)' : ''}, pendiente de reparto`, tone: 'ok' }
   }
   if (pedido.estado === 'lista_para_repartir' && isInRoute) {
     return { label: 'En ruta — pendiente de albarán', tone: 'warn' }
@@ -83,6 +85,10 @@ export default function RepartoView() {
 
   function togglePedido(id) {
     setSelected((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  function marcarTodos(valor) {
+    setSelected(Object.fromEntries(pedidosDia.map((p) => [p.id, valor])))
   }
 
   async function saveDepot() {
@@ -178,6 +184,12 @@ export default function RepartoView() {
     setPedidosDia((prev) => prev.map((p) => (p.id === pedidoId ? updated : p)))
   }
 
+  async function handleReorderRoute(nuevoOrdenStops) {
+    const stops = nuevoOrdenStops.map((s, i) => ({ ...s, orden: i + 1 }))
+    const saved = await api.saveRoute(date, stops)
+    setRoute(saved)
+  }
+
   const entregados = route?.stops?.filter((s) => s.entregado).length || 0
   const totalRuta = route?.stops?.length || 0
 
@@ -201,6 +213,35 @@ export default function RepartoView() {
           <p className="office-status office-status-muted">Todavía no se ha guardado la ruta de este día.</p>
         )}
       </section>
+
+      {route && route.stops.length > 0 && (
+        <section className="office-section">
+          <h2>Orden de la ruta</h2>
+          <p className="office-status-muted">
+            Arrastra por el ⠿ para cambiar el orden manualmente, por si hace falta una variación de
+            última hora. Se guarda solo, al momento.
+          </p>
+          <DragReorderList
+            items={route.stops}
+            keyField="pedidoId"
+            className="ruta-orden-list"
+            onReorder={handleReorderRoute}
+            renderItem={(stop, dragHandleProps) => {
+              const pedido = pedidosDia.find((p) => p.id === stop.pedidoId)
+              return (
+                <div className={`ruta-orden-row ${stop.entregado ? 'ruta-orden-row--done' : ''}`}>
+                  <span className="drag-handle" onPointerDown={dragHandleProps} aria-label="Arrastrar para reordenar">⠿</span>
+                  <span className="ruta-orden-num mono">{stop.orden}</span>
+                  <span className="ruta-orden-nombre">
+                    {pedido?.clienteNombre || 'Pedido'}
+                    {stop.entregado && <span className="client-row-badge"> ✓ entregado</span>}
+                  </span>
+                </div>
+              )
+            }}
+          />
+        </section>
+      )}
 
       <section className="office-section">
         <h2>Punto de partida</h2>
@@ -227,7 +268,17 @@ export default function RepartoView() {
       </section>
 
       <section className="office-section">
-        <h2>Pedidos de este día</h2>
+        <div className="office-section-header">
+          <h2>Pedidos de este día</h2>
+          <div className="office-section-actions">
+            <button type="button" className="btn-secondary" onClick={() => marcarTodos(true)} disabled={pedidosDia.length === 0}>
+              Marcar todos
+            </button>
+            <button type="button" className="btn-secondary" onClick={() => marcarTodos(false)} disabled={pedidosDia.length === 0}>
+              Desmarcar todos
+            </button>
+          </div>
+        </div>
         <p className="office-status-muted">
           Aparecen todos desde el momento en que entran, estén o no preparados — para poder organizar
           la ruta con antelación. Marca los que quieras incluir al optimizar.

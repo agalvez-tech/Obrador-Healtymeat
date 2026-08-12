@@ -28,7 +28,14 @@ export default async function handler(req, res) {
     // Mantenemos el pedido sincronizado con el estado de la parada
     const pedido = await redis.get(pedidoKey(pedidoId))
     if (pedido) {
-      pedido.estado = entregado ? 'enviado' : 'lista_para_repartir'
+      if (entregado) {
+        pedido.estado = 'enviado'
+      } else {
+        // Al desmarcar, volvemos al estado previo correcto: si ya tenía
+        // albarán (subido o marcado manualmente sin archivo), "OK albarán";
+        // si no, "OK montado".
+        pedido.estado = pedido.albaranPdf || pedido.sinAlbaran ? 'ok_albaran' : 'lista_para_repartir'
+      }
       pedido.entregadoAt = entregado ? Date.now() : null
       pedido.actualizadoAt = Date.now()
       await redis.set(pedidoKey(pedidoId), pedido)

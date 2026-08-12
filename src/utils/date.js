@@ -39,3 +39,20 @@ export function getWeekDates(iso) {
     return { iso: toISO(day), label: labels[i], dayNum: day.getDate() }
   })
 }
+
+// Clave estable para "la semana que contiene esta fecha", tipo "2026-W33".
+// Se usa como identificador para guardar qué clientes no quieren pedido esa semana.
+export function weekKey(iso) {
+  const dates = getWeekDates(iso)
+  const monday = new Date(`${dates[0].iso}T00:00:00`)
+  const firstJan = new Date(monday.getFullYear(), 0, 1)
+  const diffDays = Math.round((monday - firstJan) / 86400000)
+  const week = Math.ceil((diffDays + firstJan.getDay() + 1) / 7)
+  return `${monday.getFullYear()}-W${String(week).padStart(2, '0')}`
+}
+
+// Rango [inicio, fin] (lunes a domingo) de la semana que contiene "iso".
+export function weekRange(iso) {
+  const dates = getWeekDates(iso)
+  return { desde: dates[0].iso, hasta: dates[6].iso }
+}
