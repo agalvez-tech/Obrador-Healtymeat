@@ -181,6 +181,12 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
     setSaving(false)
   }
 
+  async function marcarEnviadoAgencia() {
+    setSaving(true)
+    await onSave(pedido, { estado: 'enviado' })
+    setSaving(false)
+  }
+
   const soloLectura = pedido.estado !== 'elaboracion'
   const [expandido, setExpandido] = useState(false)
 
@@ -355,19 +361,28 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
         </button>
       )}
 
+      {pedido.tipoEntrega === 'agencia' && pedido.estado === 'ok_albaran' && (
+        <button className="btn-primary btn-primary--small" disabled={saving} onClick={marcarEnviadoAgencia}>
+          {saving ? 'Guardando…' : 'OK enviado'}
+        </button>
+      )}
+
       {pedido.estado !== 'elaboracion' && (
         <div className="pedido-card-actions">
           <span className="office-status-muted">
             {pedido.estado === 'lista_para_repartir' && 'OK montado, pendiente de albarán'}
             {pedido.estado === 'ok_albaran' &&
-              (pedido.tipoEntrega === 'agencia' ? 'OK albarán — completado' : 'OK albarán, pendiente de reparto')}
-            {pedido.estado === 'enviado' && 'Entregado'}
+              (pedido.tipoEntrega === 'agencia' ? 'OK albarán, pendiente de enviar con la agencia' : 'OK albarán, pendiente de reparto')}
+            {pedido.estado === 'enviado' && (pedido.tipoEntrega === 'agencia' ? 'Enviado con la agencia' : 'Entregado')}
           </span>
           {pedido.estado === 'lista_para_repartir' && (
             <button className="btn-link" onClick={() => revertir('elaboracion')} disabled={saving}>Revertir</button>
           )}
           {pedido.estado === 'ok_albaran' && (
             <button className="btn-link" onClick={() => revertir('lista_para_repartir')} disabled={saving}>Revertir</button>
+          )}
+          {pedido.tipoEntrega === 'agencia' && pedido.estado === 'enviado' && (
+            <button className="btn-link" onClick={() => revertir('ok_albaran')} disabled={saving}>Revertir</button>
           )}
         </div>
       )}
@@ -379,9 +394,10 @@ function AlbaranStatus({ pedido }) {
   if (pedido.estado === 'enviado') {
     const fecha = pedido.entregadoAt ? new Date(pedido.entregadoAt).toLocaleString('es-ES') : ''
     const albaran = pedido.albaranFirmado || pedido.albaranPdf
+    const titulo = pedido.tipoEntrega === 'agencia' ? '✓ Enviado con la agencia' : '✓ Entregado'
     return (
       <div className="albaran-status albaran-status--firmado">
-        <div>✓ Entregado{fecha ? ` · ${fecha}` : ''}</div>
+        <div>{titulo}{fecha ? ` · ${fecha}` : ''}</div>
         {pedido.sinAlbaran && <div className="office-status-muted">Este pedido no llevaba albarán.</div>}
         {!pedido.sinAlbaran && pedido.numeroAlbaran && (
           <div className="office-status-muted">Nº albarán: {pedido.numeroAlbaran}</div>
@@ -389,7 +405,7 @@ function AlbaranStatus({ pedido }) {
         <div className="albaran-status-links">
           {albaran && (
             <button type="button" className="btn-link" onClick={() => openDataUrlInNewTab(albaran)}>
-              📄 Ver albarán firmado
+              📄 Ver albarán{pedido.firmaImagen ? ' firmado' : ''}
             </button>
           )}
           {pedido.firmaImagen && (
@@ -405,7 +421,7 @@ function AlbaranStatus({ pedido }) {
   if (pedido.estado === 'ok_albaran' && pedido.sinAlbaran) {
     const siguiente =
       pedido.tipoEntrega === 'agencia'
-        ? 'Este pedido va por agencia, así que no necesita más pasos aquí.'
+        ? 'pendiente de pulsar "OK enviado" cuando la agencia lo recoja.'
         : 'pendiente de que el repartidor lo marque entregado.'
     return (
       <div className="albaran-status">

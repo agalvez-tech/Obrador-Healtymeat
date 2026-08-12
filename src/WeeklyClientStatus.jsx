@@ -1,28 +1,21 @@
 import { useEffect, useState } from 'react'
 import { api } from './utils/api.js'
-import { todayISO, addDaysISO, weekKey, weekRange, getWeekDates } from './utils/date.js'
+import { todayISO, addDaysISO, weekKey, getWeekDates } from './utils/date.js'
 
-function formatWeekLabel(weekAnchor) {
-  const dates = getWeekDates(weekAnchor)
-  const inicio = new Date(`${dates[0].iso}T00:00:00`)
-  const fin = new Date(`${dates[6].iso}T00:00:00`)
-  const fmt = (d) => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
-  return `${fmt(inicio)} – ${fmt(fin)}`
-}
+const DIA_NOMBRE = { L: 'Lunes', M: 'Martes', X: 'Miércoles', J: 'Jueves', V: 'Viernes', S: 'Sábado', D: 'Domingo' }
 
 export default function WeeklyClientStatus({ clients }) {
   const [weekAnchor, setWeekAnchor] = useState(todayISO())
   const [pedidos, setPedidos] = useState([])
   const [omitidos, setOmitidos] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('')
 
   const semana = weekKey(weekAnchor)
-  const { desde, hasta } = weekRange(weekAnchor)
+  const weekDates = getWeekDates(weekAnchor)
 
   async function refresh() {
     const [pedidosData, omitidosData] = await Promise.all([
-      api.getPedidos({ desde, hasta }),
+      api.getPedidos({ repartoDesde: weekDates[0].iso, repartoHasta: weekDates[6].iso }),
       api.getOmitidos(semana),
     ])
     setPedidos(pedidosData)
@@ -43,81 +36,83 @@ export default function WeeklyClientStatus({ clients }) {
     setOmitidos(next)
   }
 
-  function estadoCliente(cliente) {
-    const pedidosCliente = pedidos.filter((p) => p.clienteId === cliente.id)
-    if (pedidosCliente.length === 0) {
-      return omitidos.includes(cliente.id)
-        ? { color: 'gris', label: 'No quiere esta semana' }
-        : { color: 'rojo', label: 'Sin pedido esta semana' }
+  const clientesConDia = clients.filter((c) => (c.dias || '').trim())
+  const clientesSinDia = clients.filter((c) => !(c.dias || '').trim())
+
+  function estadoCelda(cliente, diaIso) {
+    const pedido = pedidos.find((p) => p.clienteId === cliente.id && p.fechaReparto === diaIso)
+    if (pedido) {
+      return pedido.estado === 'elaboracion'
+        ? { color: 'naranja', label: 'Pedido subido, sin montar' }
+        : { color: 'verde', label: 'Pedido montado' }
     }
-    const montado = pedidosCliente.some((p) => p.estado !== 'elaboracion')
-    return montado
-      ? { color: 'verde', label: 'Pedido montado' }
-      : { color: 'naranja', label: 'Pedido subido, sin montar' }
+    return omitidos.includes(cliente.id)
+      ? { color: 'gris', label: 'No quiere esta semana' }
+      : { color: 'rojo', label: 'Sin pedido' }
   }
-
-  const filtered = clients.filter((c) => c.nombre.toLowerCase().includes(filter.trim().toLowerCase()))
-  const ordenColor = { rojo: 0, naranja: 1, verde: 2, gris: 3 }
-  const sorted = [...filtered].sort((a, b) => {
-    const ea = estadoCliente(a)
-    const eb = estadoCliente(b)
-    return ordenColor[ea.color] - ordenColor[eb.color] || a.nombre.localeCompare(b.nombre, 'es')
-  })
-
-  const counts = sorted.reduce((acc, c) => {
-    const color = estadoCliente(c).color
-    acc[color] = (acc[color] || 0) + 1
-    return acc
-  }, {})
 
   return (
     <div className="weekly-status">
       <div className="weekly-status-nav">
         <button type="button" className="btn-icon" onClick={() => setWeekAnchor(addDaysISO(weekAnchor, -7))} aria-label="Semana anterior">‹</button>
-        <span className="weekly-status-range">{formatWeekLabel(weekAnchor)}</span>
+        <span className="weekly-status-range">
+          {weekDates[0].iso} – {weekDates[6].iso}
+        </span>
         <button type="button" className="btn-icon" onClick={() => setWeekAnchor(addDaysISO(weekAnchor, 7))} aria-label="Semana siguiente">›</button>
         <button type="button" className="btn-link" onClick={() => setWeekAnchor(todayISO())}>Hoy</button>
       </div>
 
       <div className="weekly-status-legend">
-        <span className="weekly-dot weekly-dot--rojo" /> Sin pedido ({counts.rojo || 0})
-        <span className="weekly-dot weekly-dot--naranja" /> Subido ({counts.naranja || 0})
-        <span className="weekly-dot weekly-dot--verde" /> Montado ({counts.verde || 0})
-        <span className="weekly-dot weekly-dot--gris" /> No quiere ({counts.gris || 0})
+        <span className="weekly-dot weekly-dot--rojo" /> Sin pedido
+        <span className="weekly-dot weekly-dot--naranja" /> Subido, sin montar
+        <span className="weekly-dot weekly-dot--verde" /> Montado
+        <span className="weekly-dot weekly-dot--gris" /> No quiere esta semana
       </div>
-
-      <input
-        className="field-input"
-        placeholder="Buscar cliente…"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-      />
 
       {loading && <p className="office-status-muted">Cargando…</p>}
 
-      <div className="weekly-status-list">
-        {sorted.map((c) => {
-          const estado = estadoCliente(c)
-          return (
-            <div key={c.id} className="weekly-status-row">
-              <span className={`weekly-dot weekly-dot--${estado.color}`} />
-              <div className="weekly-status-row-body">
-                <div className="weekly-status-row-name">{c.nombre}</div>
-                <div className="office-status-muted">{estado.label}</div>
+      <div className="calendar-scroll">
+        <div className="calendar-grid">
+          {weekDates.map((dia) => (
+            <div key={dia.iso} className="calendar-col">
+              <div className="calendar-col-header">
+                <div>{DIA_NOMBRE[dia.label]}</div>
+                <div className="mono office-status-muted">{dia.iso.slice(8)}/{dia.iso.slice(5, 7)}</div>
               </div>
-              {(estado.color === 'rojo' || estado.color === 'gris') && (
-                <button
-                  type="button"
-                  className="btn-link"
-                  onClick={() => toggleOmitido(c.id, estado.color === 'rojo')}
-                >
-                  {estado.color === 'rojo' ? 'No quiere esta semana' : 'Sí quiere'}
-                </button>
-              )}
+              <div className="calendar-col-body">
+                {clientesConDia
+                  .filter((c) => c.dias.toUpperCase().includes(dia.label))
+                  .map((c) => {
+                    const estado = estadoCelda(c, dia.iso)
+                    return (
+                      <div key={c.id} className={`calendar-chip calendar-chip--${estado.color}`}>
+                        <span className="calendar-chip-nombre">{c.nombre}</span>
+                        {(estado.color === 'rojo' || estado.color === 'gris') && (
+                          <button
+                            type="button"
+                            className="calendar-chip-toggle"
+                            onClick={() => toggleOmitido(c.id, estado.color === 'rojo')}
+                            title={estado.color === 'rojo' ? 'No quiere esta semana' : 'Sí quiere esta semana'}
+                          >
+                            {estado.color === 'rojo' ? '⊘' : '↺'}
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+              </div>
             </div>
-          )
-        })}
+          ))}
+        </div>
       </div>
+
+      {clientesSinDia.length > 0 && (
+        <p className="office-status-muted calendar-nota">
+          {clientesSinDia.length} cliente{clientesSinDia.length === 1 ? '' : 's'} sin días habituales
+          asignados (incluye normalmente a los de agencia) no aparecen en este calendario — revísalos
+          desde la vista "Lista".
+        </p>
+      )}
     </div>
   )
 }

@@ -31,8 +31,7 @@ export const api = {
   getPedidos: (params = {}) => {
     const qs = new URLSearchParams(params).toString()
     return req(`/pedidos${qs ? `?${qs}` : ''}`)
-  },
-  addPedido: (pedido) => req('/pedidos', { method: 'POST', body: JSON.stringify(pedido) }),
+  },  addPedido: (pedido) => req('/pedidos', { method: 'POST', body: JSON.stringify(pedido) }),
   updatePedido: (pedido) => req('/pedidos', { method: 'PUT', body: JSON.stringify(pedido) }),
   deletePedido: (id) => req(`/pedidos?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
 

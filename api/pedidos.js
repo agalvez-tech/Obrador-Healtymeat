@@ -15,7 +15,7 @@ async function getAllPedidos() {
 export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
-      const { id, estado, fecha, tipoEntrega, desde, hasta } = req.query
+      const { id, estado, fecha, tipoEntrega, desde, hasta, repartoDesde, repartoHasta } = req.query
       if (id) {
         const p = await redis.get(pedidoKey(id))
         return res.status(200).json(p || null)
@@ -26,6 +26,8 @@ export default async function handler(req, res) {
       if (tipoEntrega) pedidos = pedidos.filter((p) => p.tipoEntrega === tipoEntrega)
       if (desde) pedidos = pedidos.filter((p) => p.fechaSubida >= desde)
       if (hasta) pedidos = pedidos.filter((p) => p.fechaSubida <= hasta)
+      if (repartoDesde) pedidos = pedidos.filter((p) => p.fechaReparto >= repartoDesde)
+      if (repartoHasta) pedidos = pedidos.filter((p) => p.fechaReparto <= repartoHasta)
       pedidos.sort((a, b) => (a.creadoAt || 0) - (b.creadoAt || 0))
       return res.status(200).json(pedidos)
     }

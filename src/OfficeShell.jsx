@@ -3,12 +3,14 @@ import PedidosView from './PedidosView.jsx'
 import ProduccionView from './ProduccionView.jsx'
 import RepartoView from './RepartoView.jsx'
 import ClientesView from './ClientesView.jsx'
+import ExportView from './ExportView.jsx'
 
 const TABS = [
   { key: 'pedidos', label: 'Pedidos' },
   { key: 'produccion', label: 'Producción' },
   { key: 'reparto', label: 'Reparto' },
   { key: 'clientes', label: 'Clientes' },
+  { key: 'exportar', label: 'Exportar' },
 ]
 
 export default function OfficeShell({ onChangeRole }) {
@@ -41,6 +43,7 @@ export default function OfficeShell({ onChangeRole }) {
         {tab === 'produccion' && <ProduccionView />}
         {tab === 'reparto' && <RepartoView />}
         {tab === 'clientes' && <ClientesView />}
+        {tab === 'exportar' && <ExportView />}
       </div>
     </div>
   )

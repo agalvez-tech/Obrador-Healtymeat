@@ -1408,6 +1408,106 @@ button {
   font-size: 14px;
 }
 
+.calendar-scroll {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.calendar-grid {
+  display: flex;
+  gap: 1px;
+  background: var(--hm-line);
+  border: 1px solid var(--hm-line);
+  border-radius: 8px;
+  overflow: hidden;
+  min-width: 700px;
+}
+
+.calendar-col {
+  flex: 1;
+  min-width: 96px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-col-header {
+  background: var(--hm-black);
+  color: var(--hm-paper);
+  text-align: center;
+  padding: 8px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.calendar-col-header .office-status-muted {
+  color: rgba(250, 247, 242, 0.55);
+  font-size: 10px;
+  text-transform: none;
+  font-weight: 500;
+}
+
+.calendar-col-body {
+  flex: 1;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 160px;
+}
+
+.calendar-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  border-radius: 6px;
+  padding: 5px 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.calendar-chip-nombre {
+  overflow-wrap: anywhere;
+}
+
+.calendar-chip-toggle {
+  background: none;
+  border: none;
+  font-size: 13px;
+  flex-shrink: 0;
+  opacity: 0.7;
+  padding: 0 2px;
+}
+
+.calendar-chip--rojo {
+  background: #fbe4e1;
+  color: #8f2c1f;
+}
+
+.calendar-chip--naranja {
+  background: #faead0;
+  color: #8a5a10;
+}
+
+.calendar-chip--verde {
+  background: #e0f0e4;
+  color: #235c3a;
+}
+
+.calendar-chip--gris {
+  background: #ececec;
+  color: #6b6560;
+  text-decoration: line-through;
+}
+
+.calendar-nota {
+  margin-top: 4px;
+}
+
 /* ---------- Signature pad ---------- */
 .signature-modal {
   width: 100%;
