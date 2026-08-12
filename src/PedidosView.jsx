@@ -4,8 +4,8 @@ import { extractTextFromPdf } from './utils/pdfExtract.js'
 import { extractLineasConCatalogo } from './utils/pdfOrderParser.js'
 
 const ESTADOS = [
-  { key: 'elaboracion', label: 'En elaboración' },
-  { key: 'lista_para_repartir', label: 'Lista para repartir' },
+  { key: 'elaboracion', label: 'En producción' },
+  { key: 'lista_para_repartir', label: 'OK envío' },
   { key: 'enviado', label: 'Enviado' },
 ]
 
@@ -175,7 +175,12 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
               subido {pedido.fechaSubida} · reparto {pedido.fechaReparto}
             </span>
           </div>
-          {!expandido && <div className="pedido-card-resumen">{resumenLineas}</div>}
+          {!expandido && (
+            <div className="pedido-card-resumen">
+              {resumenLineas}
+              {pedido.estado === 'enviado' && <span className="pedido-resumen-firmado"> · ✓ firmado</span>}
+            </div>
+          )}
         </div>
         <button
           type="button"
@@ -190,6 +195,10 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
       {expandido && (
         <>
           <PedidoOrigenPreview origen={pedido.origen} />
+
+          {pedido.tipoEntrega === 'propio' && pedido.estado !== 'elaboracion' && (
+            <AlbaranStatus pedido={pedido} />
+          )}
 
           <div className="lineas-pedido">
             {lineas.map((linea) => (
@@ -250,20 +259,57 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
 
       {pedido.estado === 'elaboracion' && (
         <button className="btn-primary btn-primary--small" disabled={!puedeConfirmar || saving} onClick={confirmarOk}>
-          {saving ? 'Guardando…' : 'OK reparto'}
+          {saving ? 'Guardando…' : 'OK envío'}
         </button>
       )}
 
       {pedido.estado !== 'elaboracion' && (
         <div className="pedido-card-actions">
           <span className="office-status-muted">
-            {pedido.estado === 'lista_para_repartir' ? 'Listo, pendiente de reparto' : 'Entregado'}
+            {pedido.estado === 'lista_para_repartir' ? 'OK envío, pendiente de reparto' : 'Entregado'}
           </span>
           {pedido.estado === 'lista_para_repartir' && (
             <button className="btn-link" onClick={revertir} disabled={saving}>Revertir</button>
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function AlbaranStatus({ pedido }) {
+  if (pedido.estado === 'enviado') {
+    const fecha = pedido.entregadoAt ? new Date(pedido.entregadoAt).toLocaleString('es-ES') : ''
+    return (
+      <div className="albaran-status albaran-status--firmado">
+        <div>✓ Entregado y firmado{fecha ? ` · ${fecha}` : ''}</div>
+        <div className="albaran-status-links">
+          {(pedido.albaranFirmado || pedido.albaranPdf) && (
+            <a href={pedido.albaranFirmado || pedido.albaranPdf} target="_blank" rel="noreferrer" className="btn-link">
+              📄 Ver albarán firmado
+            </a>
+          )}
+          {pedido.firmaImagen && (
+            <a href={pedido.firmaImagen} target="_blank" rel="noreferrer" className="btn-link">
+              ✍️ Ver firma
+            </a>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  if (pedido.albaranPdf) {
+    return (
+      <div className="albaran-status">
+        📄 Albarán adjunto, pendiente de que el cliente firme en la entrega.
+      </div>
+    )
+  }
+
+  return (
+    <div className="albaran-status albaran-status--pendiente">
+      ⚠ Todavía no se ha adjuntado el albarán — se puede añadir desde la pestaña Reparto.
     </div>
   )
 }

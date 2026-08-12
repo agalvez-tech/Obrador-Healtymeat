@@ -6,6 +6,21 @@ import { optimizeRoute } from './utils/optimize.js'
 
 const POLL_MS = 12000
 
+function estadoEnRuta(pedido, isInRoute) {
+  if (pedido.estado === 'enviado') {
+    return { label: '✓ Enviado y firmado', tone: 'done' }
+  }
+  if (pedido.estado === 'lista_para_repartir' && isInRoute) {
+    return pedido.albaranPdf
+      ? { label: 'OK reparto — con albarán', tone: 'ok' }
+      : { label: 'OK reparto — pendiente de albarán', tone: 'warn' }
+  }
+  if (pedido.estado === 'lista_para_repartir') {
+    return { label: 'OK envío', tone: 'info' }
+  }
+  return { label: 'En producción', tone: 'muted' }
+}
+
 export default function RepartoView() {
   const [clients, setClients] = useState([])
   const [pedidosDia, setPedidosDia] = useState([])
@@ -28,7 +43,7 @@ export default function RepartoView() {
   async function refresh() {
     const [clientsData, pedidosData, routeData] = await Promise.all([
       api.getClients(),
-      api.getPedidos({ estado: 'lista_para_repartir', tipoEntrega: 'propio', fecha: date }),
+      api.getPedidos({ tipoEntrega: 'propio', fecha: date }),
       api.getRoute(date),
     ])
     setClients(clientsData)
@@ -192,7 +207,7 @@ export default function RepartoView() {
               className="field-input"
               value={depotDraft}
               onChange={(e) => setDepotDraft(e.target.value)}
-              placeholder="Dirección del almacén, ej: Polígono Industrial, Museros"
+              placeholder="Carrer Emperador 15, Museros"
             />
             <button className="btn-secondary" onClick={saveDepot} disabled={depotSaving}>
               {depotSaving ? 'Localizando…' : 'Guardar'}
@@ -203,18 +218,21 @@ export default function RepartoView() {
       </section>
 
       <section className="office-section">
-        <h2>Pedidos listos para este día</h2>
+        <h2>Pedidos de este día</h2>
+        <p className="office-status-muted">
+          Aparecen todos desde el momento en que entran, estén o no preparados — para poder organizar
+          la ruta con antelación. Marca los que quieras incluir al optimizar.
+        </p>
         {loading && <p className="office-status-muted">Cargando…</p>}
         {!loading && pedidosDia.length === 0 && (
-          <p className="office-status-muted">
-            No hay pedidos marcados "OK reparto" para este día todavía. Confírmalos desde la pestaña Pedidos.
-          </p>
+          <p className="office-status-muted">Todavía no ha entrado ningún pedido para este día.</p>
         )}
         <div className="client-list">
           {pedidosDia.map((p) => {
             const cliente = clients.find((c) => c.id === p.clienteId)
             const stop = route?.stops?.find((s) => s.pedidoId === p.id)
             const isSelected = !!selected[p.id]
+            const estado = estadoEnRuta(p, !!stop)
             return (
               <div key={p.id} className={`client-row ${isSelected ? 'client-row--selected' : ''}`}>
                 <label className="client-row-check">
@@ -223,11 +241,13 @@ export default function RepartoView() {
                 <div className="client-row-body">
                   <div className="client-row-name">
                     {p.clienteNombre}
-                    {stop?.entregado && <span className="client-row-badge">✓ entregado</span>}
+                    <span className={`estado-badge estado-badge--${estado.tone}`}>{estado.label}</span>
                   </div>
                   <div className="client-row-address">{cliente?.direccion}</div>
                   <div className="office-status-muted">
-                    {(p.lineas || []).map((l) => `${l.producto || '(sin producto)'}: ${l.cantidad} ${l.unidad} · lote ${l.lote}`).join(' — ')}
+                    {p.lineas && p.lineas.length > 0
+                      ? p.lineas.map((l) => `${l.producto || '(sin producto)'}: ${l.cantidad} ${l.unidad} · lote ${l.lote}`).join(' — ')
+                      : 'todavía sin preparar'}
                   </div>
                   <div className="albaran-row">
                     {p.albaranPdf ? (

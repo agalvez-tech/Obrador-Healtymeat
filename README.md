@@ -29,18 +29,19 @@ oficina y repartidor ven lo mismo en tiempo real desde dispositivos distintos.
      rellenar a mano.
 2. Al subirlo, la app calcula sola el próximo día de reparto de ese cliente
    (según los "días habituales" que tenga guardados) y el pedido entra en
-   **"En elaboración"**.
+   **"En producción"** — y ya aparece en la pestaña Reparto de ese día,
+   aunque todavía no esté preparado.
 3. Quien prepara el pedido revisa cada línea (**producto**, **cantidad**,
-   **lote**) y pulsa **"OK reparto"** cuando todas las líneas están
+   **lote**) y pulsa **"OK envío"** cuando todas las líneas están
    completas — el lote no se rellena solo, hay que escribirlo a mano; si
-   falta en alguna línea, el botón "OK reparto" se queda desactivado.
+   falta en alguna línea, el botón "OK envío" se queda desactivado.
    A partir de ahí pasa a
-   **"Lista para repartir"**.
-4. Si el cliente es de **reparto propio**, ese pedido aparecerá en la pestaña
-   Reparto, en el día que le toque. Si es de **agencia de envío**, se queda
-   aquí mismo como terminado — no hace falta agendarlo en ningún sitio, ya
-   que la agencia se encarga por su cuenta.
-5. Los pedidos de "En elaboración" y "Lista para repartir" aparecen
+   **"OK envío"**.
+4. Si el cliente es de **reparto propio**, ese pedido sigue viéndose en la
+   pestaña Reparto del día que le toque, ahora ya preparado. Si es de
+   **agencia de envío**, se queda aquí mismo como terminado — no hace falta
+   agendarlo en ningún sitio, ya que la agencia se encarga por su cuenta.
+5. Los pedidos de "En producción" y "OK envío" aparecen
    plegados, mostrando solo el cliente y un resumen — toca la cabecera de
    cada uno para desplegarlo y ver/editar sus líneas.
 
@@ -59,15 +60,33 @@ falta. Añade o quita productos con "Gestionar productos".
 
 ## Pestaña Reparto
 
-Aquí ya no seleccionas clientes a mano: la lista que ves son los **pedidos
-en "Lista para repartir" para el día que elijas**, de clientes de reparto
-propio. Vienen todos marcados por defecto — desmarca si alguno se pospone.
+**Aquí aparecen todos los pedidos de reparto propio del día que elijas, desde
+el momento en que entran** — estén o no preparados todavía. La idea es que
+puedas organizar la ruta con antelación sin depender de que ya estén listos.
+Cada uno muestra en qué punto está:
 
-1. **Punto de partida**: la dirección del almacén, se guarda una vez.
-2. Por cada pedido puedes **"+ Añadir albarán (PDF)"** — el PDF que firmará
-   el cliente al recibir el pedido.
+- **En producción** — el pedido ha entrado pero todavía no le han puesto
+  "OK envío" en la pestaña Pedidos.
+- **OK envío** — ya está preparado (lote y cantidad de cada línea puestos),
+  pero todavía no se ha incluido en una ruta guardada.
+- **OK reparto — pendiente de albarán** — ya está dentro de una ruta
+  guardada, pero le falta el PDF del albarán.
+- **OK reparto — con albarán** — todo listo, solo falta que el repartidor lo
+  entregue y lo firmen.
+- **✓ Enviado y firmado** — entregado, con la firma ya archivada.
+
+Todos vienen marcados por defecto para la ruta — desmarca los que no toquen
+todavía si quieres dejarlos para otro día.
+
+1. **Punto de partida**: viene precargado con **Carrer Emperador 15,
+   Museros** (vuestro almacén), así que no hace falta escribirlo cada vez.
+   Si alguna vez cambia, se edita con "Cambiar".
+2. Por cada pedido puedes **"+ Añadir albarán (PDF)"** en cualquier momento
+   — no hace falta esperar a que esté "OK envío".
 3. **"Optimizar y guardar ruta"**: calcula el orden más corto por carretera
-   y lo manda al móvil del repartidor.
+   con los pedidos marcados (aunque no estén preparados todavía) y lo manda
+   al móvil del repartidor. Al pasar a "OK envío" un pedido que ya estaba en
+   la ruta, su estado sube solo a "OK reparto" sin tener que rehacer nada.
 4. Aquí mismo ves cuántos van entregados, actualizado solo cada 12 segundos.
 
 ## Pestaña Clientes
