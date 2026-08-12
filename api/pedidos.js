@@ -43,9 +43,6 @@ export default async function handler(req, res) {
           ? new Date().toISOString().slice(0, 10)
           : nextDeliveryDate(cliente.dias)
 
-      const lote6 = new Date()
-      const loteDefecto = `${String(lote6.getDate()).padStart(2, '0')}${String(lote6.getMonth() + 1).padStart(2, '0')}${String(lote6.getFullYear()).slice(2)}`
-
       const lineas =
         Array.isArray(body.lineas) && body.lineas.length > 0
           ? body.lineas.map((l, i) => ({
@@ -56,7 +53,7 @@ export default async function handler(req, res) {
               unidad: l.unidad === 'kg' ? 'kg' : 'uds',
               lote: l.lote || '',
             }))
-          : [{ id: `linea-${now}-0`, producto: '', textoOriginal: '', cantidad: '', unidad: 'uds', lote: loteDefecto }]
+          : [{ id: `linea-${now}-0`, producto: '', textoOriginal: '', cantidad: '', unidad: 'uds', lote: '' }]
 
       const pedido = {
         id: `p-${now}-${Math.round(Math.random() * 1000)}`,

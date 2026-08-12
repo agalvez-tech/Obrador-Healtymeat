@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import MapView from './MapView.jsx'
 import SignaturePad from './SignaturePad.jsx'
 import { api } from './utils/api.js'
-import { todayISO, formatDateLong } from './utils/date.js'
+import { todayISO, formatDateLong, getWeekDates, addDaysISO } from './utils/date.js'
 import { mergeSignatureIntoPdf } from './utils/pdfSign.js'
 
 const ROUTE_POLL_MS = 15000
@@ -19,11 +19,17 @@ export default function DriverView({ onChangeRole }) {
   const [pendingIds, setPendingIds] = useState({})
   const [stopErrors, setStopErrors] = useState({})
   const [signingPedidoId, setSigningPedidoId] = useState(null)
-  const date = todayISO()
+
+  const today = todayISO()
+  const [viewDate, setViewDate] = useState(today)
+  const [weekAnchor, setWeekAnchor] = useState(today)
+  const [weekSummary, setWeekSummary] = useState({})
+  const weekDates = getWeekDates(weekAnchor)
+  const esHoy = viewDate === today
 
   async function loadEverything() {
     try {
-      const [clientsData, routeData] = await Promise.all([api.getClients(), api.getRoute(date)])
+      const [clientsData, routeData] = await Promise.all([api.getClients(), api.getRoute(viewDate)])
       setClients(clientsData)
       setRoute(routeData)
 
@@ -47,12 +53,37 @@ export default function DriverView({ onChangeRole }) {
     }
   }
 
+  async function loadWeekSummary() {
+    try {
+      const routes = await Promise.all(weekDates.map((d) => api.getRoute(d.iso)))
+      const summary = {}
+      weekDates.forEach((d, i) => {
+        const r = routes[i]
+        summary[d.iso] = {
+          total: r?.stops?.length || 0,
+          entregados: r?.stops?.filter((s) => s.entregado).length || 0,
+        }
+      })
+      setWeekSummary(summary)
+    } catch {
+      // Si falla el resumen semanal no bloqueamos el resto de la pantalla
+    }
+  }
+
   useEffect(() => {
+    setLoading(true)
     loadEverything()
     const interval = setInterval(loadEverything, ROUTE_POLL_MS)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [viewDate])
+
+  useEffect(() => {
+    loadWeekSummary()
+    const interval = setInterval(loadWeekSummary, ROUTE_POLL_MS)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekAnchor])
 
   useEffect(() => {
     if (!('geolocation' in navigator)) {
@@ -78,7 +109,7 @@ export default function DriverView({ onChangeRole }) {
       stops: prev.stops.map((s) => (s.pedidoId === pedidoId ? { ...s, entregado: next } : s)),
     }))
     try {
-      await api.markDelivered(date, pedidoId, next)
+      await api.markDelivered(viewDate, pedidoId, next)
       await loadEverything()
     } catch (err) {
       setRoute((prev) => ({
@@ -104,7 +135,7 @@ export default function DriverView({ onChangeRole }) {
           albaranFirmado = null
         }
       }
-      await api.firmarPedido(date, pedidoId, firmaPng, albaranFirmado)
+      await api.firmarPedido(viewDate, pedidoId, firmaPng, albaranFirmado)
       setSigningPedidoId(null)
       await loadEverything()
     } catch (err) {
@@ -136,6 +167,16 @@ export default function DriverView({ onChangeRole }) {
         <button className="btn-ghost" onClick={onChangeRole}>Cambiar modo</button>
       </header>
 
+      <WeekNavigator
+        weekDates={weekDates}
+        viewDate={viewDate}
+        weekSummary={weekSummary}
+        onSelectDate={setViewDate}
+        onPrevWeek={() => setWeekAnchor(addDaysISO(weekAnchor, -7))}
+        onNextWeek={() => setWeekAnchor(addDaysISO(weekAnchor, 7))}
+        onToday={() => { setWeekAnchor(today); setViewDate(today) }}
+      />
+
       {loading && (
         <div className="upload-screen">
           <p className="office-status-muted">Cargando la ruta de hoy…</p>
@@ -156,7 +197,10 @@ export default function DriverView({ onChangeRole }) {
           <div className="upload-card">
             <img src="/logo.jpg" alt="HealthyMeat" className="upload-logo" />
             <h1>Sin ruta todavía</h1>
-            <p>La oficina no ha planificado la ruta de hoy ({formatDateLong(date)}) todavía. Esta pantalla se actualiza sola en cuanto la guarden.</p>
+            <p>
+              La oficina no ha planificado la ruta de {esHoy ? 'hoy' : ''} {formatDateLong(viewDate)} todavía.
+              {esHoy && ' Esta pantalla se actualiza sola en cuanto la guarden.'}
+            </p>
             <button className="btn-secondary" onClick={loadEverything}>Comprobar ahora</button>
           </div>
         </div>
@@ -181,6 +225,7 @@ export default function DriverView({ onChangeRole }) {
                 stop={stop}
                 pending={!!pendingIds[stop.pedidoId]}
                 error={stopErrors[stop.pedidoId]}
+                soloLectura={!esHoy}
                 onToggleSinFirma={() => toggleEntregadoSinFirma(stop.pedidoId, !stop.entregado)}
                 onFirmar={() => setSigningPedidoId(stop.pedidoId)}
                 onFocus={() => setFocusStopId(stop.pedidoId)}
@@ -197,6 +242,36 @@ export default function DriverView({ onChangeRole }) {
           onConfirm={(png) => handleFirmaConfirmada(signingPedidoId, png)}
         />
       )}
+    </div>
+  )
+}
+
+function WeekNavigator({ weekDates, viewDate, weekSummary, onSelectDate, onPrevWeek, onNextWeek, onToday }) {
+  return (
+    <div className="week-nav">
+      <button type="button" className="btn-icon" onClick={onPrevWeek} aria-label="Semana anterior">‹</button>
+      <div className="week-nav-days">
+        {weekDates.map((d) => {
+          const summary = weekSummary[d.iso]
+          const lleno = summary && summary.total > 0 && summary.entregados === summary.total
+          return (
+            <button
+              key={d.iso}
+              type="button"
+              className={`week-day ${viewDate === d.iso ? 'week-day--active' : ''} ${lleno ? 'week-day--done' : ''}`}
+              onClick={() => onSelectDate(d.iso)}
+            >
+              <span className="week-day-label">{d.label}</span>
+              <span className="week-day-num mono">{d.dayNum}</span>
+              {summary && summary.total > 0 && (
+                <span className="week-day-count mono">{summary.entregados}/{summary.total}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+      <button type="button" className="btn-icon" onClick={onNextWeek} aria-label="Semana siguiente">›</button>
+      <button type="button" className="btn-link week-today-btn" onClick={onToday}>Hoy</button>
     </div>
   )
 }
@@ -228,7 +303,7 @@ function RouteProgress({ stopsData, total, entregados, onSelect }) {
   )
 }
 
-function StopCard({ stop, pending, error, onToggleSinFirma, onFirmar, onFocus }) {
+function StopCard({ stop, pending, error, soloLectura, onToggleSinFirma, onFirmar, onFocus }) {
   const pedido = stop.pedido
   const tieneAlbaran = !!pedido?.albaranPdf
 
@@ -257,7 +332,13 @@ function StopCard({ stop, pending, error, onToggleSinFirma, onFirmar, onFocus })
         {error && <div className="stop-card-warning">{error}</div>}
       </div>
 
-      {!stop.entregado && tieneAlbaran && (
+      {soloLectura && (
+        <span className={`badge ${stop.entregado ? 'badge--propio' : 'badge--agencia'}`}>
+          {stop.entregado ? '✓ Entregado' : 'Pendiente'}
+        </span>
+      )}
+
+      {!soloLectura && !stop.entregado && tieneAlbaran && (
         <button
           className="stop-card-toggle"
           disabled={pending}
@@ -266,7 +347,7 @@ function StopCard({ stop, pending, error, onToggleSinFirma, onFirmar, onFocus })
           {pending ? '…' : 'Firmar y entregar'}
         </button>
       )}
-      {!stop.entregado && !tieneAlbaran && (
+      {!soloLectura && !stop.entregado && !tieneAlbaran && (
         <button
           className="stop-card-toggle"
           disabled={pending}
@@ -275,7 +356,7 @@ function StopCard({ stop, pending, error, onToggleSinFirma, onFirmar, onFocus })
           {pending ? '…' : 'Marcar entregado'}
         </button>
       )}
-      {stop.entregado && (
+      {!soloLectura && stop.entregado && (
         <button
           className="stop-card-toggle stop-card-toggle--done"
           disabled={pending}

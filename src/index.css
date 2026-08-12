@@ -875,6 +875,36 @@ button {
   gap: 8px;
 }
 
+.pedido-card-top--clickable {
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.chevron {
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--hm-gold-dark);
+  transition: transform 0.15s ease;
+}
+
+.chevron--open {
+  transform: rotate(90deg);
+}
+
+.pedido-card-resumen {
+  font-size: 12.5px;
+  color: var(--hm-gray);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
 .pedido-card-cliente {
   font-weight: 700;
   font-size: 15px;
@@ -1047,6 +1077,88 @@ button {
   font-size: 13.5px;
 }
 
+/* ---------- Week navigator (Driver view) ---------- */
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--hm-black);
+  padding: 8px 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(250, 247, 242, 0.1);
+}
+
+.week-nav-days {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  overflow-x: auto;
+}
+
+.week-day {
+  flex: 1;
+  min-width: 40px;
+  background: transparent;
+  border: 1px solid rgba(250, 247, 242, 0.15);
+  border-radius: 10px;
+  padding: 6px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: var(--hm-paper);
+}
+
+.week-day-label {
+  font-size: 10px;
+  color: rgba(250, 247, 242, 0.55);
+  text-transform: uppercase;
+}
+
+.week-day-num {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.week-day-count {
+  font-size: 9.5px;
+  color: var(--hm-gold);
+}
+
+.week-day--active {
+  background: var(--hm-gold);
+  border-color: var(--hm-gold);
+}
+
+.week-day--active .week-day-label,
+.week-day--active .week-day-num {
+  color: var(--hm-black);
+}
+
+.week-day--active .week-day-count {
+  color: var(--hm-black);
+}
+
+.week-day--done:not(.week-day--active) {
+  border-color: var(--hm-green);
+}
+
+.week-day--done:not(.week-day--active) .week-day-count {
+  color: var(--hm-green);
+}
+
+.week-nav .btn-icon {
+  color: var(--hm-paper);
+  font-size: 20px;
+  padding: 4px 6px;
+}
+
+.week-today-btn {
+  color: var(--hm-gold);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
 /* ---------- Signature pad ---------- */
 .signature-modal {
   width: 100%;

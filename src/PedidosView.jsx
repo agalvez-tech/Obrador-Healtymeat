@@ -9,13 +9,8 @@ const ESTADOS = [
   { key: 'enviado', label: 'Enviado' },
 ]
 
-function todayLote() {
-  const d = new Date()
-  return `${String(d.getDate()).padStart(2, '0')}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getFullYear()).slice(2)}`
-}
-
 function nuevaLineaVacia() {
-  return { id: `linea-${Date.now()}-${Math.round(Math.random() * 1000)}`, producto: '', textoOriginal: '', cantidad: '', unidad: 'uds', lote: todayLote() }
+  return { id: `linea-${Date.now()}-${Math.round(Math.random() * 1000)}`, producto: '', textoOriginal: '', cantidad: '', unidad: 'uds', lote: '' }
 }
 
 export default function PedidosView() {
@@ -152,12 +147,26 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
   }
 
   const soloLectura = pedido.estado !== 'elaboracion'
+  const [expandido, setExpandido] = useState(false)
+
+  const resumenLineas = lineas.length
+    ? lineas.map((l) => l.producto || '(sin producto)').join(', ')
+    : 'sin líneas todavía'
 
   return (
     <div className="pedido-card">
-      <div className="pedido-card-top">
+      <div
+        className="pedido-card-top pedido-card-top--clickable"
+        role="button"
+        tabIndex={0}
+        onClick={() => setExpandido((v) => !v)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpandido((v) => !v) }}
+      >
         <div>
-          <div className="pedido-card-cliente">{pedido.clienteNombre}</div>
+          <div className="pedido-card-cliente">
+            <span className={`chevron ${expandido ? 'chevron--open' : ''}`}>▸</span>
+            {pedido.clienteNombre}
+          </div>
           <div className="pedido-card-meta">
             <span className={`badge ${isAgencia ? 'badge--agencia' : 'badge--propio'}`}>
               {isAgencia ? 'Agencia' : 'Reparto propio'}
@@ -166,66 +175,78 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
               subido {pedido.fechaSubida} · reparto {pedido.fechaReparto}
             </span>
           </div>
+          {!expandido && <div className="pedido-card-resumen">{resumenLineas}</div>}
         </div>
-        <button className="btn-icon" onClick={() => onDelete(pedido.id)} aria-label="Eliminar">🗑</button>
+        <button
+          type="button"
+          className="btn-icon"
+          aria-label="Eliminar"
+          onClick={(e) => { e.stopPropagation(); onDelete(pedido.id) }}
+        >
+          🗑
+        </button>
       </div>
 
-      <PedidoOrigenPreview origen={pedido.origen} />
+      {expandido && (
+        <>
+          <PedidoOrigenPreview origen={pedido.origen} />
 
-      <div className="lineas-pedido">
-        {lineas.map((linea) => (
-          <div key={linea.id} className="linea-pedido">
-            <select
-              className="field-input field-input--compact linea-producto"
-              value={linea.producto}
-              disabled={soloLectura}
-              onChange={(e) => actualizarLinea(linea.id, { producto: e.target.value })}
-              onBlur={guardarLineas}
-            >
-              <option value="">{linea.producto ? linea.producto : 'Selecciona el producto…'}</option>
-              {productos.map((p) => (
-                <option key={p.id} value={p.nombre}>{p.nombre}</option>
-              ))}
-            </select>
-            {linea.textoOriginal && (
-              <div className="linea-original">del pedido: "{linea.textoOriginal}"</div>
+          <div className="lineas-pedido">
+            {lineas.map((linea) => (
+              <div key={linea.id} className="linea-pedido">
+                <select
+                  className="field-input field-input--compact linea-producto"
+                  value={linea.producto}
+                  disabled={soloLectura}
+                  onChange={(e) => actualizarLinea(linea.id, { producto: e.target.value })}
+                  onBlur={guardarLineas}
+                >
+                  <option value="">{linea.producto ? linea.producto : 'Selecciona el producto…'}</option>
+                  {productos.map((p) => (
+                    <option key={p.id} value={p.nombre}>{p.nombre}</option>
+                  ))}
+                </select>
+                {linea.textoOriginal && (
+                  <div className="linea-original">del pedido: "{linea.textoOriginal}"</div>
+                )}
+                <div className="linea-cantidad-row">
+                  <input
+                    className="field-input field-input--compact"
+                    placeholder="Cantidad"
+                    value={linea.cantidad}
+                    disabled={soloLectura}
+                    onChange={(e) => actualizarLinea(linea.id, { cantidad: e.target.value })}
+                    onBlur={guardarLineas}
+                  />
+                  <select
+                    className="field-select"
+                    value={linea.unidad}
+                    disabled={soloLectura}
+                    onChange={(e) => { actualizarLinea(linea.id, { unidad: e.target.value }); guardarLineas() }}
+                  >
+                    <option value="uds">uds</option>
+                    <option value="kg">kg</option>
+                  </select>
+                  <input
+                    className="field-input field-input--compact"
+                    placeholder="Lote (obligatorio)"
+                    value={linea.lote}
+                    disabled={soloLectura}
+                    onChange={(e) => actualizarLinea(linea.id, { lote: e.target.value })}
+                    onBlur={guardarLineas}
+                  />
+                  {!soloLectura && (
+                    <button type="button" className="btn-icon" onClick={() => quitarLinea(linea.id)} aria-label="Quitar línea">🗑</button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {!soloLectura && (
+              <button type="button" className="btn-link" onClick={añadirLinea}>+ Añadir línea de producto</button>
             )}
-            <div className="linea-cantidad-row">
-              <input
-                className="field-input field-input--compact"
-                placeholder="Cantidad"
-                value={linea.cantidad}
-                disabled={soloLectura}
-                onChange={(e) => actualizarLinea(linea.id, { cantidad: e.target.value })}
-                onBlur={guardarLineas}
-              />
-              <select
-                className="field-select"
-                value={linea.unidad}
-                disabled={soloLectura}
-                onChange={(e) => { actualizarLinea(linea.id, { unidad: e.target.value }); guardarLineas() }}
-              >
-                <option value="uds">uds</option>
-                <option value="kg">kg</option>
-              </select>
-              <input
-                className="field-input field-input--compact"
-                placeholder="Lote"
-                value={linea.lote}
-                disabled={soloLectura}
-                onChange={(e) => actualizarLinea(linea.id, { lote: e.target.value })}
-                onBlur={guardarLineas}
-              />
-              {!soloLectura && (
-                <button type="button" className="btn-icon" onClick={() => quitarLinea(linea.id)} aria-label="Quitar línea">🗑</button>
-              )}
-            </div>
           </div>
-        ))}
-        {!soloLectura && (
-          <button type="button" className="btn-link" onClick={añadirLinea}>+ Añadir línea de producto</button>
-        )}
-      </div>
+        </>
+      )}
 
       {pedido.estado === 'elaboracion' && (
         <button className="btn-primary btn-primary--small" disabled={!puedeConfirmar || saving} onClick={confirmarOk}>

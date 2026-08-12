@@ -31,23 +31,26 @@ oficina y repartidor ven lo mismo en tiempo real desde dispositivos distintos.
    (según los "días habituales" que tenga guardados) y el pedido entra en
    **"En elaboración"**.
 3. Quien prepara el pedido revisa cada línea (**producto**, **cantidad**,
-   **lote** — este último ya viene con la fecha de hoy en formato DDMMAA,
-   editable) y pulsa **"OK reparto"** cuando todas las líneas están
-   completas. A partir de ahí pasa a
+   **lote**) y pulsa **"OK reparto"** cuando todas las líneas están
+   completas — el lote no se rellena solo, hay que escribirlo a mano; si
+   falta en alguna línea, el botón "OK reparto" se queda desactivado.
+   A partir de ahí pasa a
    **"Lista para repartir"**.
 4. Si el cliente es de **reparto propio**, ese pedido aparecerá en la pestaña
    Reparto, en el día que le toque. Si es de **agencia de envío**, se queda
    aquí mismo como terminado — no hace falta agendarlo en ningún sitio, ya
    que la agencia se encarga por su cuenta.
+5. Los pedidos de "En elaboración" y "Lista para repartir" aparecen
+   plegados, mostrando solo el cliente y un resumen — toca la cabecera de
+   cada uno para desplegarlo y ver/editar sus líneas.
 
 ## Pestaña Producción
 
 Registro diario de lo que va sacando el obrador: fecha, producto (de una
-lista desplegable), lote y cantidad (kg o unidades). El **lote se autocompleta
-con la fecha en formato DDMMAA** (12/08/2026 → "120826") al elegir la fecha;
-si sacas dos tandas el mismo día, edítalo a mano para distinguirlas (por
-ejemplo "120826-2"). De momento este registro es solo un archivo/listado —
-no está conectado con Pedidos ni con el stock.
+lista desplegable), lote y cantidad (kg o unidades). El **lote se escribe a
+mano** (no se autocompleta) y es obligatorio — sin él no se puede guardar el
+registro. De momento este registro es solo un archivo/listado — no está
+conectado con Pedidos ni con el stock.
 
 **El desplegable viene con tus 33 productos ya cargados**, con su formato de
 envasado (bandeja, caja, bolsa, al peso) — al elegir uno, la unidad
@@ -79,6 +82,18 @@ el mapa es aproximada — repásalos cuando puedas:
 - **BEGIN ALAMEDA** (calle confirmada, número 47 sin verificar)
 - **BOTAPA** y **CATAMARAN** (zona correcta, no el edificio exacto)
 - **NOE / KEKU CERVECERIA** (no localizada; el pin es solo el centro de Alcàsser)
+
+## Ver toda la semana (modo Repartidor)
+
+Justo debajo de la cabecera hay una fila con los 7 días de la semana (L a D).
+Cada día muestra cuántos pedidos tiene programados y cuántos van entregados
+(por ejemplo "3/5"), y se pone en verde cuando están todos entregados — así
+se ve de un vistazo cómo se va llenando la semana a medida que oficina
+planifica rutas. Con ‹ › se cambia de semana, y "Hoy" vuelve al día actual.
+
+Solo se puede marcar como entregado o firmar en el día de **hoy**; al mirar
+otro día (pasado o futuro) las paradas se ven en modo consulta, con una
+etiqueta de "Entregado" o "Pendiente" en vez de los botones de acción.
 
 ## Cómo firma el cliente el albarán (modo Repartidor)
 
