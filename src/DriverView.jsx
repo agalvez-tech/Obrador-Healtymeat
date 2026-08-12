@@ -238,7 +238,11 @@ function StopCard({ stop, pending, error, onToggleSinFirma, onFirmar, onFocus })
       <div className="stop-card-body">
         <div className="stop-card-name">{stop.nombre}</div>
         <div className="stop-card-address">{stop.direccion}</div>
-        <div className="stop-card-items">📦 lote {pedido.lote || '—'} · {pedido.cantidad || '—'} {pedido.unidadCantidad}</div>
+        <div className="stop-card-items">
+          {(pedido.lineas || []).map((l) => (
+            <div key={l.id}>📦 {l.producto || '(sin producto)'}: {l.cantidad} {l.unidad} · lote {l.lote}</div>
+          ))}
+        </div>
         {stop.telefono && <div className="stop-card-phone">☎ {stop.telefono}</div>}
         {(stop.dias || stop.horario) && (
           <div className="stop-card-schedule">

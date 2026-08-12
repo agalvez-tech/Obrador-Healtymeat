@@ -43,6 +43,21 @@ export default async function handler(req, res) {
           ? new Date().toISOString().slice(0, 10)
           : nextDeliveryDate(cliente.dias)
 
+      const lote6 = new Date()
+      const loteDefecto = `${String(lote6.getDate()).padStart(2, '0')}${String(lote6.getMonth() + 1).padStart(2, '0')}${String(lote6.getFullYear()).slice(2)}`
+
+      const lineas =
+        Array.isArray(body.lineas) && body.lineas.length > 0
+          ? body.lineas.map((l, i) => ({
+              id: l.id || `linea-${now}-${i}`,
+              producto: l.producto || '',
+              textoOriginal: l.textoOriginal || '',
+              cantidad: l.cantidad || '',
+              unidad: l.unidad === 'kg' ? 'kg' : 'uds',
+              lote: l.lote || '',
+            }))
+          : [{ id: `linea-${now}-0`, producto: '', textoOriginal: '', cantidad: '', unidad: 'uds', lote: loteDefecto }]
+
       const pedido = {
         id: `p-${now}-${Math.round(Math.random() * 1000)}`,
         clienteId: cliente.id,
@@ -52,9 +67,7 @@ export default async function handler(req, res) {
         fechaSubida: new Date().toISOString().slice(0, 10),
         fechaReparto,
         estado: 'elaboracion',
-        lote: '',
-        cantidad: '',
-        unidadCantidad: 'uds',
+        lineas,
         albaranPdf: null,
         firmaImagen: null,
         albaranFirmado: null,

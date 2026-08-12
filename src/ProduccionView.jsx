@@ -2,13 +2,21 @@ import { useEffect, useState } from 'react'
 import { api } from './utils/api.js'
 import { todayISO, formatDateLong } from './utils/date.js'
 
+// Convierte una fecha "2026-08-12" al formato de lote "120826" (DDMMAA)
+function fechaToLote(fechaISO) {
+  const [y, m, d] = fechaISO.split('-')
+  return `${d}${m}${y.slice(2)}`
+}
+
+const LOTE_AUTO_PATTERN = /^\d{6}$/
+
 export default function ProduccionView() {
   const [productos, setProductos] = useState([])
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [fecha, setFecha] = useState(todayISO())
   const [producto, setProducto] = useState('')
-  const [lote, setLote] = useState('')
+  const [lote, setLote] = useState(fechaToLote(todayISO()))
   const [cantidad, setCantidad] = useState('')
   const [unidad, setUnidad] = useState('kg')
   const [saving, setSaving] = useState(false)
@@ -26,6 +34,13 @@ export default function ProduccionView() {
     refresh()
   }, [])
 
+  // Si el lote actual parece autogenerado (6 dígitos) o está vacío, lo
+  // recalculamos al cambiar la fecha; si alguien lo ha editado a mano
+  // (por ejemplo para añadir un sufijo de segunda tanda), no lo tocamos.
+  useEffect(() => {
+    setLote((prev) => (prev === '' || LOTE_AUTO_PATTERN.test(prev) ? fechaToLote(fecha) : prev))
+  }, [fecha])
+
   async function handleSubmit(e) {
     e.preventDefault()
     if (!producto || !cantidad.trim()) {
@@ -36,7 +51,7 @@ export default function ProduccionView() {
     setError(null)
     try {
       await api.addProduccion({ fecha, producto, lote: lote.trim(), cantidad: cantidad.trim(), unidad })
-      setLote('')
+      setLote(fechaToLote(fecha))
       setCantidad('')
       await refresh()
     } catch (err) {
@@ -86,7 +101,7 @@ export default function ProduccionView() {
             </select>
           </div>
           <div>
-            <label className="field-label">Lote (opcional)</label>
+            <label className="field-label">Lote</label>
             <input className="field-input" value={lote} onChange={(e) => setLote(e.target.value)} placeholder="Nº de lote" />
           </div>
         </div>

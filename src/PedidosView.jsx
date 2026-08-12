@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from './utils/api.js'
+import { extractTextFromPdf } from './utils/pdfExtract.js'
+import { extractLineasConCatalogo } from './utils/pdfOrderParser.js'
 
 const ESTADOS = [
   { key: 'elaboracion', label: 'En elaboración' },
@@ -7,16 +9,31 @@ const ESTADOS = [
   { key: 'enviado', label: 'Enviado' },
 ]
 
+function todayLote() {
+  const d = new Date()
+  return `${String(d.getDate()).padStart(2, '0')}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getFullYear()).slice(2)}`
+}
+
+function nuevaLineaVacia() {
+  return { id: `linea-${Date.now()}-${Math.round(Math.random() * 1000)}`, producto: '', textoOriginal: '', cantidad: '', unidad: 'uds', lote: todayLote() }
+}
+
 export default function PedidosView() {
   const [clients, setClients] = useState([])
+  const [productos, setProductos] = useState([])
   const [pedidos, setPedidos] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('elaboracion')
   const [showUpload, setShowUpload] = useState(false)
 
   async function refresh() {
-    const [clientsData, pedidosData] = await Promise.all([api.getClients(), api.getPedidos()])
+    const [clientsData, productosData, pedidosData] = await Promise.all([
+      api.getClients(),
+      api.getProductos(),
+      api.getPedidos(),
+    ])
     setClients(clientsData)
+    setProductos(productosData)
     setPedidos(pedidosData)
     setLoading(false)
   }
@@ -33,7 +50,7 @@ export default function PedidosView() {
     await refresh()
   }
 
-  async function savePreparerFields(pedido, patch) {
+  async function savePedido(pedido, patch) {
     const updated = await api.updatePedido({ id: pedido.id, ...patch })
     setPedidos((prev) => prev.map((p) => (p.id === pedido.id ? updated : p)))
   }
@@ -78,13 +95,14 @@ export default function PedidosView() {
 
       <div className="pedido-list">
         {filtered.map((p) => (
-          <PedidoCard key={p.id} pedido={p} onSave={savePreparerFields} onDelete={handleDelete} />
+          <PedidoCard key={p.id} pedido={p} productos={productos} onSave={savePedido} onDelete={handleDelete} />
         ))}
       </div>
 
       {showUpload && (
         <UploadPedidoModal
           clients={clients}
+          productos={productos}
           onCancel={() => setShowUpload(false)}
           onSave={handleUpload}
         />
@@ -93,29 +111,37 @@ export default function PedidosView() {
   )
 }
 
-function PedidoCard({ pedido, onSave, onDelete }) {
-  const [lote, setLote] = useState(pedido.lote || '')
-  const [cantidad, setCantidad] = useState(pedido.cantidad || '')
-  const [unidad, setUnidad] = useState(pedido.unidadCantidad || 'uds')
+function PedidoCard({ pedido, productos, onSave, onDelete }) {
+  const [lineas, setLineas] = useState(pedido.lineas || [])
   const [saving, setSaving] = useState(false)
 
   const isAgencia = pedido.tipoEntrega === 'agencia'
-  const puedeConfirmar = pedido.estado === 'elaboracion' && lote.trim() && cantidad.trim()
+  const puedeConfirmar =
+    pedido.estado === 'elaboracion' &&
+    lineas.length > 0 &&
+    lineas.every((l) => l.producto && l.cantidad.toString().trim() && l.lote.trim())
 
-  async function confirmarOk() {
+  function actualizarLinea(id, patch) {
+    setLineas((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)))
+  }
+
+  function añadirLinea() {
+    setLineas((prev) => [...prev, nuevaLineaVacia()])
+  }
+
+  function quitarLinea(id) {
+    setLineas((prev) => prev.filter((l) => l.id !== id))
+  }
+
+  async function guardarLineas() {
     setSaving(true)
-    await onSave(pedido, {
-      lote: lote.trim(),
-      cantidad: cantidad.trim(),
-      unidadCantidad: unidad,
-      estado: 'lista_para_repartir',
-    })
+    await onSave(pedido, { lineas })
     setSaving(false)
   }
 
-  async function guardarCampos() {
+  async function confirmarOk() {
     setSaving(true)
-    await onSave(pedido, { lote: lote.trim(), cantidad: cantidad.trim(), unidadCantidad: unidad })
+    await onSave(pedido, { lineas, estado: 'lista_para_repartir' })
     setSaving(false)
   }
 
@@ -124,6 +150,8 @@ function PedidoCard({ pedido, onSave, onDelete }) {
     await onSave(pedido, { estado: 'elaboracion' })
     setSaving(false)
   }
+
+  const soloLectura = pedido.estado !== 'elaboracion'
 
   return (
     <div className="pedido-card">
@@ -144,27 +172,59 @@ function PedidoCard({ pedido, onSave, onDelete }) {
 
       <PedidoOrigenPreview origen={pedido.origen} />
 
-      <div className="pedido-card-fields">
-        <input
-          className="field-input field-input--compact"
-          placeholder="Nº de lote"
-          value={lote}
-          onChange={(e) => setLote(e.target.value)}
-          onBlur={guardarCampos}
-        />
-        <div className="pedido-cantidad-row">
-          <input
-            className="field-input field-input--compact"
-            placeholder="Cantidad"
-            value={cantidad}
-            onChange={(e) => setCantidad(e.target.value)}
-            onBlur={guardarCampos}
-          />
-          <select className="field-select" value={unidad} onChange={(e) => { setUnidad(e.target.value); guardarCampos() }}>
-            <option value="uds">uds</option>
-            <option value="kg">kg</option>
-          </select>
-        </div>
+      <div className="lineas-pedido">
+        {lineas.map((linea) => (
+          <div key={linea.id} className="linea-pedido">
+            <select
+              className="field-input field-input--compact linea-producto"
+              value={linea.producto}
+              disabled={soloLectura}
+              onChange={(e) => actualizarLinea(linea.id, { producto: e.target.value })}
+              onBlur={guardarLineas}
+            >
+              <option value="">{linea.producto ? linea.producto : 'Selecciona el producto…'}</option>
+              {productos.map((p) => (
+                <option key={p.id} value={p.nombre}>{p.nombre}</option>
+              ))}
+            </select>
+            {linea.textoOriginal && (
+              <div className="linea-original">del pedido: "{linea.textoOriginal}"</div>
+            )}
+            <div className="linea-cantidad-row">
+              <input
+                className="field-input field-input--compact"
+                placeholder="Cantidad"
+                value={linea.cantidad}
+                disabled={soloLectura}
+                onChange={(e) => actualizarLinea(linea.id, { cantidad: e.target.value })}
+                onBlur={guardarLineas}
+              />
+              <select
+                className="field-select"
+                value={linea.unidad}
+                disabled={soloLectura}
+                onChange={(e) => { actualizarLinea(linea.id, { unidad: e.target.value }); guardarLineas() }}
+              >
+                <option value="uds">uds</option>
+                <option value="kg">kg</option>
+              </select>
+              <input
+                className="field-input field-input--compact"
+                placeholder="Lote"
+                value={linea.lote}
+                disabled={soloLectura}
+                onChange={(e) => actualizarLinea(linea.id, { lote: e.target.value })}
+                onBlur={guardarLineas}
+              />
+              {!soloLectura && (
+                <button type="button" className="btn-icon" onClick={() => quitarLinea(linea.id)} aria-label="Quitar línea">🗑</button>
+              )}
+            </div>
+          </div>
+        ))}
+        {!soloLectura && (
+          <button type="button" className="btn-link" onClick={añadirLinea}>+ Añadir línea de producto</button>
+        )}
       </div>
 
       {pedido.estado === 'elaboracion' && (
@@ -209,12 +269,13 @@ function PedidoOrigenPreview({ origen }) {
   return null
 }
 
-function UploadPedidoModal({ clients, onCancel, onSave }) {
+function UploadPedidoModal({ clients, productos, onCancel, onSave }) {
   const [clienteId, setClienteId] = useState('')
   const [modo, setModo] = useState('texto')
   const [texto, setTexto] = useState('')
   const [archivo, setArchivo] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [progreso, setProgreso] = useState(null)
   const [error, setError] = useState(null)
   const fileInputRef = useRef(null)
 
@@ -251,13 +312,31 @@ function UploadPedidoModal({ clients, onCancel, onSave }) {
     setError(null)
     try {
       let contenido = texto.trim()
+      let lineas = null
+
       if (modo !== 'texto') {
+        setProgreso('Leyendo archivo…')
         contenido = await readFileAsDataUrl(archivo)
       }
-      await onSave({ clienteId, origen: { tipo: modo, contenido } })
+
+      if (modo === 'pdf') {
+        setProgreso('Buscando los productos en el PDF…')
+        try {
+          const textoPdf = await extractTextFromPdf(contenido)
+          lineas = extractLineasConCatalogo(textoPdf, productos)
+          if (lineas.length === 0) lineas = null
+        } catch {
+          // Si el PDF no se puede leer (escaneado, formato raro...), seguimos
+          // sin desglose automático; la persona lo rellenará a mano.
+          lineas = null
+        }
+      }
+
+      await onSave({ clienteId, origen: { tipo: modo, contenido }, lineas })
     } catch (err) {
       setError(err.message || 'No se pudo subir el pedido.')
       setSaving(false)
+      setProgreso(null)
     }
   }
 
@@ -283,6 +362,13 @@ function UploadPedidoModal({ clients, onCancel, onSave }) {
           <button type="button" className={`pill-tab ${modo === 'pdf' ? 'pill-tab--active' : ''}`} onClick={() => setModo('pdf')}>PDF</button>
         </div>
 
+        {modo === 'pdf' && (
+          <p className="office-status-muted">
+            Si el PDF trae una tabla de productos, intentaré rellenar las líneas automáticamente
+            cruzándolas con tu catálogo. Lo que no reconozca se deja en blanco para elegirlo a mano.
+          </p>
+        )}
+
         {modo === 'texto' && (
           <textarea
             className="field-input field-textarea"
@@ -303,6 +389,7 @@ function UploadPedidoModal({ clients, onCancel, onSave }) {
         )}
 
         {error && <p className="upload-error">{error}</p>}
+        {progreso && <p className="office-status-muted">{progreso}</p>}
 
         <div className="modal-actions">
           <button type="button" className="btn-ghost btn-ghost--dark" onClick={onCancel} disabled={saving}>Cancelar</button>

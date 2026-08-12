@@ -14,13 +14,26 @@ oficina y repartidor ven lo mismo en tiempo real desde dispositivos distintos.
 
 1. **"+ Subir pedido"**: eliges qué cliente lo ha hecho (de tu lista de
    clientes) y pegas el pedido — como texto, como imagen o como PDF, lo que
-   tengas a mano. Se guarda tal cual, sin ningún procesamiento automático:
-   quien prepare el pedido lo lee directamente ahí.
+   tengas a mano.
+   - **Si es un PDF con una tabla de productos** (como los que genera
+     gstock), la app intenta desglosarlo sola: detecta cada línea de
+     producto y cantidad, y la cruza contra tu catálogo de productos. Lo que
+     reconoce con confianza lo rellena automáticamente; lo que no, lo deja
+     con el desplegable vacío para que la persona elija el producto a mano.
+     Esto es aproximado por diseño — nombres como "hamburguesa" vs "burger"
+     se reconocen, pero cuanto más distinto sea el texto del PDF del nombre
+     real del producto, más líneas tocará rellenar a mano. Siempre se puede
+     añadir o quitar líneas con "+ Añadir línea de producto" / 🗑.
+   - Si es texto pegado o una imagen, no hay desglose automático (no leo
+     imágenes): se guarda tal cual y se añade una línea en blanco para
+     rellenar a mano.
 2. Al subirlo, la app calcula sola el próximo día de reparto de ese cliente
    (según los "días habituales" que tenga guardados) y el pedido entra en
    **"En elaboración"**.
-3. Quien prepara el pedido lo abre, rellena **nº de lote** y **cantidad**
-   (número o kg), y pulsa **"OK reparto"**. A partir de ahí pasa a
+3. Quien prepara el pedido revisa cada línea (**producto**, **cantidad**,
+   **lote** — este último ya viene con la fecha de hoy en formato DDMMAA,
+   editable) y pulsa **"OK reparto"** cuando todas las líneas están
+   completas. A partir de ahí pasa a
    **"Lista para repartir"**.
 4. Si el cliente es de **reparto propio**, ese pedido aparecerá en la pestaña
    Reparto, en el día que le toque. Si es de **agencia de envío**, se queda
@@ -30,8 +43,11 @@ oficina y repartidor ven lo mismo en tiempo real desde dispositivos distintos.
 ## Pestaña Producción
 
 Registro diario de lo que va sacando el obrador: fecha, producto (de una
-lista desplegable), lote y cantidad (kg o unidades). De momento es solo un
-archivo/listado — no está conectado con Pedidos ni con el stock.
+lista desplegable), lote y cantidad (kg o unidades). El **lote se autocompleta
+con la fecha en formato DDMMAA** (12/08/2026 → "120826") al elegir la fecha;
+si sacas dos tandas el mismo día, edítalo a mano para distinguirlas (por
+ejemplo "120826-2"). De momento este registro es solo un archivo/listado —
+no está conectado con Pedidos ni con el stock.
 
 **El desplegable viene con tus 33 productos ya cargados**, con su formato de
 envasado (bandeja, caja, bolsa, al peso) — al elegir uno, la unidad

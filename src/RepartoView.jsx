@@ -227,7 +227,7 @@ export default function RepartoView() {
                   </div>
                   <div className="client-row-address">{cliente?.direccion}</div>
                   <div className="office-status-muted">
-                    lote {p.lote || '—'} · {p.cantidad || '—'} {p.unidadCantidad}
+                    {(p.lineas || []).map((l) => `${l.producto || '(sin producto)'}: ${l.cantidad} ${l.unidad} · lote ${l.lote}`).join(' — ')}
                   </div>
                   <div className="albaran-row">
                     {p.albaranPdf ? (
