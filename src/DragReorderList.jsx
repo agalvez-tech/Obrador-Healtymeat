@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 // Lista reordenable "pulsar y arrastrar": se agarra por el icono de asa
 // (⠿) y se mueve verticalmente; al cruzar el punto medio de la fila vecina,
@@ -12,14 +12,18 @@ export default function DragReorderList({ items, keyField = 'id', onReorder, ren
   const draggingIdRef = useRef(null)
   const localItemsRef = useRef(items)
 
-  // Si la lista cambia desde fuera (se añade/quita una línea) y no estamos
-  // arrastrando, resincronizamos el orden local con el que llega por props.
-  const idsProp = items.map((it) => it[keyField]).join(',')
-  const idsLocal = localItemsRef.current.map((it) => it[keyField]).join(',')
-  if (idsProp !== idsLocal && !draggingIdRef.current) {
-    localItemsRef.current = items
-    setLocalItems(items)
-  }
+  // Mientras NO se está arrastrando, la lista local siempre tiene que
+  // reflejar los datos más recientes que llegan por props — no solo cuando
+  // se añade o quita una línea, sino también cuando cambia el contenido de
+  // una (cantidad, lote, producto...). Si solo resincronizáramos al cambiar
+  // el conjunto de ids, cualquier campo que se estuviera editando se
+  // quedaría "congelado" con el valor antiguo y no se podría escribir nada.
+  useEffect(() => {
+    if (!draggingIdRef.current) {
+      localItemsRef.current = items
+      setLocalItems(items)
+    }
+  }, [items])
 
   function handlePointerDown(id, e) {
     e.preventDefault()

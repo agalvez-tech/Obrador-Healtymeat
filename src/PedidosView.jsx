@@ -111,6 +111,8 @@ export default function PedidosView() {
 
 function PedidoCard({ pedido, productos, onSave, onDelete }) {
   const [lineas, setLineas] = useState(pedido.lineas || [])
+  const lineasRef = useRef(lineas)
+  lineasRef.current = lineas
   const [numeroPedido, setNumeroPedido] = useState(pedido.numeroPedido || '')
   const [numeroAlbaran, setNumeroAlbaran] = useState(pedido.numeroAlbaran || '')
   const [saving, setSaving] = useState(false)
@@ -126,17 +128,30 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
     setLineas((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)))
   }
 
+  // Cambia un campo y guarda inmediatamente con el valor ya calculado (no
+  // depende de que el estado se haya actualizado antes de leerlo, que es
+  // asíncrono) — se usa para los desplegables, que se guardan al momento.
+  function actualizarYGuardarLinea(id, patch) {
+    const next = lineas.map((l) => (l.id === id ? { ...l, ...patch } : l))
+    setLineas(next)
+    lineasRef.current = next
+    onSave(pedido, { lineas: next })
+  }
+
   function añadirLinea() {
     setLineas((prev) => [...prev, nuevaLineaVacia()])
   }
 
   function quitarLinea(id) {
-    setLineas((prev) => prev.filter((l) => l.id !== id))
+    const next = lineas.filter((l) => l.id !== id)
+    setLineas(next)
+    lineasRef.current = next
+    onSave(pedido, { lineas: next })
   }
 
   async function guardarLineas() {
     setSaving(true)
-    await onSave(pedido, { lineas })
+    await onSave(pedido, { lineas: lineasRef.current })
     setSaving(false)
   }
 
@@ -292,7 +307,7 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
             <DragReorderList
               items={lineas}
               className="lineas-pedido-drag"
-              onReorder={(next) => { setLineas(next); onSave(pedido, { lineas: next }) }}
+              onReorder={(next) => { setLineas(next); lineasRef.current = next; onSave(pedido, { lineas: next }) }}
               renderItem={(linea, dragHandleProps) => (
                 <div className="linea-pedido">
                   <div className="linea-pedido-top">
@@ -303,7 +318,7 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
                       className="field-input field-input--compact linea-producto"
                       value={linea.producto}
                       disabled={soloLectura}
-                      onChange={(e) => actualizarLinea(linea.id, { producto: e.target.value })}
+                      onChange={(e) => actualizarYGuardarLinea(linea.id, { producto: e.target.value })}
                       onBlur={guardarLineas}
                     >
                       <option value="">{linea.producto ? linea.producto : 'Selecciona el producto…'}</option>
@@ -328,7 +343,7 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
                       className="field-select"
                       value={linea.unidad}
                       disabled={soloLectura}
-                      onChange={(e) => { actualizarLinea(linea.id, { unidad: e.target.value }); guardarLineas() }}
+                      onChange={(e) => actualizarYGuardarLinea(linea.id, { unidad: e.target.value })}
                     >
                       <option value="uds">uds</option>
                       <option value="kg">kg</option>
