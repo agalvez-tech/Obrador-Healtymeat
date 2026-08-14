@@ -332,6 +332,15 @@ corregirlas a mano).
 
 ## Notas técnicas y limitaciones a tener en cuenta
 
+- **Límite de funciones serverless (plan gratuito de Vercel)**: el plan
+  Hobby permite un máximo de 12 funciones en `api/` por despliegue. Ahora
+  mismo hay 9 (varias se fusionaron internamente — por ejemplo, marcar
+  entregado y firmar viven dentro de `pedidos.js`; proveedores y materias
+  primas comparten `catalogos.js`), así que hay margen para 3 más antes de
+  volver a tocar este límite. Si en el futuro se añade una función nueva y
+  aparece el error "No more than 12 Serverless Functions...", hay que
+  fusionar alguna existente de la misma manera antes de desplegar.
+
 - **Mapa y geocodificación**: OpenStreetMap + Nominatim, gratuitos.
 - **Optimización de ruta**: OSRM público (gratuito, por carretera real). Si
   no responde, se usa distancia en línea recta como alternativa automática.

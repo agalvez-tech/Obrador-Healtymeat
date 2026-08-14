@@ -8,9 +8,20 @@ const seedClients = JSON.parse(
   readFileSync(join(__dirname, '../lib/data/clients-seed.json'), 'utf-8')
 )
 
+const omitidosKey = (semana) => `reparto:omitidos:${semana}`
+
 export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
+      // Fusionado aquí (antes /api/omitidos) para no pasarnos del límite de
+      // funciones serverless del plan gratuito de Vercel.
+      if (req.query.accion === 'omitidos') {
+        const { semana } = req.query
+        if (!semana) return res.status(400).json({ error: 'Falta el parámetro semana' })
+        const omitidos = (await redis.get(omitidosKey(semana))) || []
+        return res.status(200).json(omitidos)
+      }
+
       let clients = await redis.get(KEYS.clients)
       if (!clients) {
         // Primera vez que se pide la lista: precargamos los clientes habituales
@@ -23,6 +34,20 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = req.body
+
+      if (body.accion === 'omitidos') {
+        const { semana, clienteId, omitido } = body
+        if (!semana || !clienteId) {
+          return res.status(400).json({ error: 'Faltan semana o clienteId' })
+        }
+        const omitidos = (await redis.get(omitidosKey(semana))) || []
+        const next = omitido
+          ? [...new Set([...omitidos, clienteId])]
+          : omitidos.filter((id) => id !== clienteId)
+        await redis.set(omitidosKey(semana), next)
+        return res.status(200).json(next)
+      }
+
       const clients = (await redis.get(KEYS.clients)) || []
       const newClient = {
         id: `c-${Date.now()}-${Math.round(Math.random() * 1000)}`,

@@ -20,10 +20,10 @@ export const api = {
   saveRoute: (date, stops) => req('/route', { method: 'POST', body: JSON.stringify({ date, stops }) }),
 
   markDelivered: (date, pedidoId, entregado) =>
-    req('/deliver', { method: 'POST', body: JSON.stringify({ date, pedidoId, entregado }) }),
+    req('/pedidos', { method: 'POST', body: JSON.stringify({ accion: 'entregar', date, pedidoId, entregado }) }),
 
   firmarPedido: (date, pedidoId, firmaImagen, albaranFirmado) =>
-    req('/firmar', { method: 'POST', body: JSON.stringify({ date, pedidoId, firmaImagen, albaranFirmado }) }),
+    req('/pedidos', { method: 'POST', body: JSON.stringify({ accion: 'firmar', date, pedidoId, firmaImagen, albaranFirmado }) }),
 
   getSettings: () => req('/settings'),
   saveSettings: (settings) => req('/settings', { method: 'POST', body: JSON.stringify(settings) }),
@@ -31,7 +31,8 @@ export const api = {
   getPedidos: (params = {}) => {
     const qs = new URLSearchParams(params).toString()
     return req(`/pedidos${qs ? `?${qs}` : ''}`)
-  },  addPedido: (pedido) => req('/pedidos', { method: 'POST', body: JSON.stringify(pedido) }),
+  },
+  addPedido: (pedido) => req('/pedidos', { method: 'POST', body: JSON.stringify(pedido) }),
   updatePedido: (pedido) => req('/pedidos', { method: 'PUT', body: JSON.stringify(pedido) }),
   deletePedido: (id) => req(`/pedidos?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
@@ -46,17 +47,17 @@ export const api = {
   addProduccion: (entry) => req('/produccion', { method: 'POST', body: JSON.stringify(entry) }),
   deleteProduccion: (id) => req(`/produccion?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
-  getOmitidos: (semana) => req(`/omitidos?semana=${semana}`),
+  getOmitidos: (semana) => req(`/clients?accion=omitidos&semana=${semana}`),
   setOmitido: (semana, clienteId, omitido) =>
-    req('/omitidos', { method: 'POST', body: JSON.stringify({ semana, clienteId, omitido }) }),
+    req('/clients', { method: 'POST', body: JSON.stringify({ accion: 'omitidos', semana, clienteId, omitido }) }),
 
-  getProveedores: () => req('/proveedores'),
-  addProveedor: (nombre) => req('/proveedores', { method: 'POST', body: JSON.stringify({ nombre }) }),
-  deleteProveedor: (id) => req(`/proveedores?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  getProveedores: () => req('/catalogos?tipo=proveedores'),
+  addProveedor: (nombre) => req('/catalogos', { method: 'POST', body: JSON.stringify({ tipo: 'proveedores', nombre }) }),
+  deleteProveedor: (id) => req(`/catalogos?tipo=proveedores&id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
-  getMateriasPrimas: () => req('/materias-primas'),
-  addMateriaPrima: (nombre) => req('/materias-primas', { method: 'POST', body: JSON.stringify({ nombre }) }),
-  deleteMateriaPrima: (nombre) => req(`/materias-primas?nombre=${encodeURIComponent(nombre)}`, { method: 'DELETE' }),
+  getMateriasPrimas: () => req('/catalogos?tipo=materias-primas'),
+  addMateriaPrima: (nombre) => req('/catalogos', { method: 'POST', body: JSON.stringify({ tipo: 'materias-primas', nombre }) }),
+  deleteMateriaPrima: (nombre) => req(`/catalogos?tipo=materias-primas&nombre=${encodeURIComponent(nombre)}`, { method: 'DELETE' }),
 
   getTrazabilidadProveedores: (params = {}) => {
     const qs = new URLSearchParams(params).toString()

@@ -34,6 +34,17 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = req.body
+
+      // Acciones fusionadas aquí (antes eran /api/deliver y /api/firmar,
+      // por separado) para no pasarnos del límite de funciones serverless
+      // del plan gratuito de Vercel.
+      if (body.accion === 'entregar') {
+        return marcarEntregado(req, res)
+      }
+      if (body.accion === 'firmar') {
+        return firmarPedido(req, res)
+      }
+
       if (!body.clienteId || !body.origen) {
         return res.status(400).json({ error: 'Faltan clienteId u origen del pedido' })
       }
@@ -117,6 +128,81 @@ export default async function handler(req, res) {
 
     res.setHeader('Allow', 'GET, POST, PUT, DELETE')
     return res.status(405).end()
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Error interno' })
+  }
+}
+
+// Antes era /api/deliver — marca (o desmarca) una parada como entregada y
+// sincroniza el estado del pedido correspondiente.
+async function marcarEntregado(req, res) {
+  try {
+    const { date, pedidoId, entregado } = req.body
+    if (!date || !pedidoId) {
+      return res.status(400).json({ error: 'Faltan date o pedidoId' })
+    }
+
+    const route = await redis.get(KEYS.route(date))
+    if (!route) return res.status(404).json({ error: 'No hay ruta guardada para ese día' })
+
+    const stop = route.stops.find((s) => s.pedidoId === pedidoId)
+    if (!stop) return res.status(404).json({ error: 'Esa parada no está en la ruta de hoy' })
+
+    stop.entregado = !!entregado
+    stop.entregadoAt = entregado ? Date.now() : null
+    route.updatedAt = Date.now()
+    await redis.set(KEYS.route(date), route)
+
+    const pedido = await redis.get(pedidoKey(pedidoId))
+    if (pedido) {
+      if (entregado) {
+        pedido.estado = 'enviado'
+      } else {
+        pedido.estado = pedido.albaranPdf || pedido.sinAlbaran ? 'ok_albaran' : 'lista_para_repartir'
+      }
+      pedido.entregadoAt = entregado ? Date.now() : null
+      pedido.actualizadoAt = Date.now()
+      await redis.set(pedidoKey(pedidoId), pedido)
+    }
+
+    return res.status(200).json(route)
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Error interno' })
+  }
+}
+
+// Antes era /api/firmar — guarda la firma capturada por el repartidor y
+// marca el pedido y la parada correspondiente como entregados.
+async function firmarPedido(req, res) {
+  try {
+    const { date, pedidoId, firmaImagen, albaranFirmado } = req.body
+    if (!date || !pedidoId || !firmaImagen) {
+      return res.status(400).json({ error: 'Faltan date, pedidoId o firmaImagen' })
+    }
+
+    const pedido = await redis.get(pedidoKey(pedidoId))
+    if (!pedido) return res.status(404).json({ error: 'Pedido no encontrado' })
+
+    const now = Date.now()
+    pedido.firmaImagen = firmaImagen
+    pedido.albaranFirmado = albaranFirmado || null
+    pedido.estado = 'enviado'
+    pedido.entregadoAt = now
+    pedido.actualizadoAt = now
+    await redis.set(pedidoKey(pedidoId), pedido)
+
+    const route = await redis.get(KEYS.route(date))
+    if (route) {
+      const stop = route.stops.find((s) => s.pedidoId === pedidoId)
+      if (stop) {
+        stop.entregado = true
+        stop.entregadoAt = now
+        route.updatedAt = now
+        await redis.set(KEYS.route(date), route)
+      }
+    }
+
+    return res.status(200).json(pedido)
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Error interno' })
   }
