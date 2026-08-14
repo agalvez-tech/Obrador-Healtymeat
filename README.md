@@ -179,9 +179,9 @@ Cada día muestra cuántos pedidos tiene programados y cuántos van entregados
 se ve de un vistazo cómo se va llenando la semana a medida que oficina
 planifica rutas. Con ‹ › se cambia de semana, y "Hoy" vuelve al día actual.
 
-Solo se puede marcar como entregado o firmar en el día de **hoy**; al mirar
-otro día (pasado o futuro) las paradas se ven en modo consulta, con una
-etiqueta de "Entregado" o "Pendiente" en vez de los botones de acción.
+Se puede marcar como entregado o firmar en **cualquier día** de la semana, no
+solo hoy — por si un pedido no se reparte el día que tocaba y hay que
+volver atrás para cerrarlo, o adelantarte a un día siguiente.
 
 ## Cómo llegar a cada parada (modo Repartidor)
 
