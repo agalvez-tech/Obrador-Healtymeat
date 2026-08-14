@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import OfficeShell from './OfficeShell.jsx'
 import DriverView from './DriverView.jsx'
+import TrazabilidadShell from './TrazabilidadShell.jsx'
 import { getRole, setRole as persistRole, clearRole } from './utils/role.js'
 
 export default function App() {
@@ -20,11 +21,9 @@ export default function App() {
     return <RoleScreen onChoose={chooseRole} />
   }
 
-  return role === 'oficina' ? (
-    <OfficeShell onChangeRole={changeRole} />
-  ) : (
-    <DriverView onChangeRole={changeRole} />
-  )
+  if (role === 'oficina') return <OfficeShell onChangeRole={changeRole} />
+  if (role === 'trazabilidad') return <TrazabilidadShell onChangeRole={changeRole} />
+  return <DriverView onChangeRole={changeRole} />
 }
 
 function RoleScreen({ onChoose }) {
@@ -34,10 +33,13 @@ function RoleScreen({ onChoose }) {
       <p className="role-app-name">HealthyMeat Obrador</p>
       <h1>¿Cómo vas a usar este dispositivo?</h1>
       <button className="btn-primary" onClick={() => onChoose('oficina')}>
-        Soy de oficina — planifico la ruta
+        OBRADOR — pedidos, producción y reparto
       </button>
       <button className="btn-primary btn-primary--alt" onClick={() => onChoose('repartidor')}>
         Soy repartidor — reparto hoy
+      </button>
+      <button className="btn-primary btn-primary--alt" onClick={() => onChoose('trazabilidad')}>
+        TRAZABILIDAD — proveedores y producción
       </button>
       <p className="role-hint">
         Esto se recuerda en este dispositivo. Puedes cambiarlo luego desde "Cambiar modo" arriba.

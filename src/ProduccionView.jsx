@@ -155,16 +155,25 @@ export default function ProduccionView() {
 function ManageProductsModal({ productos, onClose, onChange }) {
   const [nombre, setNombre] = useState('')
   const [formato, setFormato] = useState('')
+  const [tieneKg, setTieneKg] = useState(false)
+  const [tieneUds, setTieneUds] = useState(true)
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState(null)
 
   async function handleAdd(e) {
     e.preventDefault()
     if (!nombre.trim()) return
+    if (!tieneKg && !tieneUds) {
+      setError('Marca al menos un formato (kg o uds).')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
-      await api.addProducto(nombre.trim(), formato.trim())
+      const formatos = [tieneUds && 'uds', tieneKg && 'kg'].filter(Boolean)
+      await api.addProducto(nombre.trim(), formato.trim(), formatos)
       setNombre('')
       setFormato('')
       await onChange()
@@ -180,10 +189,30 @@ function ManageProductsModal({ productos, onClose, onChange }) {
     await onChange()
   }
 
+  async function handleSync() {
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      await api.sincronizarCatalogoBase()
+      await onChange()
+      setSyncMsg('Catálogo actualizado con los formatos (kg/uds) del listado base.')
+    } catch (err) {
+      setSyncMsg(err.message || 'No se pudo sincronizar.')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal client-form" onClick={(e) => e.stopPropagation()}>
         <h3>Productos del obrador</h3>
+
+        <button type="button" className="btn-secondary" onClick={handleSync} disabled={syncing}>
+          {syncing ? 'Sincronizando…' : 'Actualizar formatos desde el listado base'}
+        </button>
+        {syncMsg && <p className="office-status-muted">{syncMsg}</p>}
+
         <form onSubmit={handleAdd}>
           <label className="field-label">Nombre</label>
           <input
@@ -192,18 +221,21 @@ function ManageProductsModal({ productos, onClose, onChange }) {
             onChange={(e) => setNombre(e.target.value)}
             placeholder="Nombre del producto"
           />
-          <label className="field-label">Formato (opcional)</label>
-          <div className="depot-edit">
-            <input
-              className="field-input"
-              value={formato}
-              onChange={(e) => setFormato(e.target.value)}
-              placeholder="Bandeja 20 unidades"
-            />
-            <button className="btn-secondary" type="submit" disabled={saving}>Añadir</button>
+          <label className="field-label">Formato de envasado (opcional)</label>
+          <input
+            className="field-input"
+            value={formato}
+            onChange={(e) => setFormato(e.target.value)}
+            placeholder="Bandeja 20 unidades"
+          />
+          <label className="field-label">¿Cómo se mide?</label>
+          <div className="formatos-checkboxes">
+            <label><input type="checkbox" checked={tieneUds} onChange={(e) => setTieneUds(e.target.checked)} /> Unidades</label>
+            <label><input type="checkbox" checked={tieneKg} onChange={(e) => setTieneKg(e.target.checked)} /> Kg</label>
           </div>
+          {error && <p className="upload-error">{error}</p>}
+          <button className="btn-primary btn-primary--small" type="submit" disabled={saving}>Añadir producto</button>
         </form>
-        {error && <p className="upload-error">{error}</p>}
 
         <div className="product-list">
           {productos.map((p) => (
@@ -211,6 +243,7 @@ function ManageProductsModal({ productos, onClose, onChange }) {
               <span>
                 {p.nombre}
                 {p.formato && <span className="office-status-muted"> — {p.formato}</span>}
+                <span className="office-status-muted"> ({(p.formatos || [p.unidadDefecto]).join(' + ')})</span>
               </span>
               <button className="btn-icon" onClick={() => handleDelete(p.id)} aria-label="Eliminar">🗑</button>
             </div>

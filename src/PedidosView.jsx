@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from './utils/api.js'
 import { extractTextFromPdf } from './utils/pdfExtract.js'
-import { extractLineasConCatalogo, extractNumeroPedido } from './utils/pdfOrderParser.js'
+import { extractLineasConCatalogo, extractNumeroPedido, extractNumeroAlbaran } from './utils/pdfOrderParser.js'
 import { openDataUrlInNewTab } from './utils/openDataUrl.js'
 import DragReorderList from './DragReorderList.jsx'
 
@@ -142,6 +142,19 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
     setLineas((prev) => [...prev, nuevaLineaVacia()])
   }
 
+  // Para productos que se miden en kg Y en uds, añade una línea gemela con
+  // el otro formato, por si ese pedido en concreto necesita ambas.
+  function añadirLineaOtroFormato(linea) {
+    const prod = productos.find((p) => p.nombre === linea.producto)
+    if (!prod) return
+    const otro = linea.unidad === 'kg' ? 'uds' : 'kg'
+    const nueva = { ...nuevaLineaVacia(), producto: linea.producto, unidad: otro }
+    const next = [...lineas, nueva]
+    setLineas(next)
+    lineasRef.current = next
+    onSave(pedido, { lineas: next })
+  }
+
   function quitarLinea(id) {
     const next = lineas.filter((l) => l.id !== id)
     setLineas(next)
@@ -171,7 +184,17 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
     setSaving(true)
     const reader = new FileReader()
     reader.onload = async () => {
-      await onSave(pedido, { albaranPdf: reader.result })
+      const dataUrl = reader.result
+      let numeroDetectado = ''
+      try {
+        const texto = await extractTextFromPdf(dataUrl)
+        numeroDetectado = extractNumeroAlbaran(texto)
+      } catch {
+        // Si el PDF no se puede leer como texto (escaneado, etc.), se deja
+        // en blanco para rellenarlo a mano.
+      }
+      await onSave(pedido, { albaranPdf: dataUrl, numeroAlbaran: numeroDetectado })
+      if (numeroDetectado) setNumeroAlbaran(numeroDetectado)
       setSaving(false)
     }
     reader.onerror = () => setSaving(false)
@@ -294,7 +317,7 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
               <label className="field-label">Nº de albarán (opcional)</label>
               <input
                 className="field-input field-input--compact"
-                placeholder="Referencia del albarán"
+                placeholder="Se rellena solo si el PDF lo trae, o escríbelo a mano"
                 value={numeroAlbaran}
                 disabled={pedido.estado === 'enviado'}
                 onChange={(e) => setNumeroAlbaran(e.target.value)}
@@ -318,7 +341,11 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
                       className="field-input field-input--compact linea-producto"
                       value={linea.producto}
                       disabled={soloLectura}
-                      onChange={(e) => actualizarYGuardarLinea(linea.id, { producto: e.target.value })}
+                      onChange={(e) => {
+                        const nombre = e.target.value
+                        const prod = productos.find((p) => p.nombre === nombre)
+                        actualizarYGuardarLinea(linea.id, { producto: nombre, unidad: prod?.unidadDefecto || linea.unidad })
+                      }}
                       onBlur={guardarLineas}
                     >
                       <option value="">{linea.producto ? linea.producto : 'Selecciona el producto…'}</option>
@@ -327,6 +354,23 @@ function PedidoCard({ pedido, productos, onSave, onDelete }) {
                       ))}
                     </select>
                   </div>
+                  {(() => {
+                    if (soloLectura || !linea.producto) return null
+                    const prod = productos.find((p) => p.nombre === linea.producto)
+                    if (!prod || !prod.formatos || prod.formatos.length < 2) return null
+                    const otro = linea.unidad === 'kg' ? 'uds' : 'kg'
+                    const yaExiste = lineas.some((l) => l.producto === linea.producto && l.unidad === otro)
+                    if (yaExiste) return null
+                    return (
+                      <button
+                        type="button"
+                        className="btn-link linea-otro-formato"
+                        onClick={() => añadirLineaOtroFormato(linea)}
+                      >
+                        + Este producto también se mide en {otro} — añadir línea
+                      </button>
+                    )
+                  })()}
                   {linea.textoOriginal && (
                     <div className="linea-original">del pedido: "{linea.textoOriginal}"</div>
                   )}

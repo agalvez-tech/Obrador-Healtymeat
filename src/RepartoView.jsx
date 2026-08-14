@@ -4,6 +4,8 @@ import { todayISO, formatDateLong } from './utils/date.js'
 import { geocodeAddress } from './utils/geocode.js'
 import { optimizeRoute } from './utils/optimize.js'
 import { openDataUrlInNewTab } from './utils/openDataUrl.js'
+import { extractTextFromPdf } from './utils/pdfExtract.js'
+import { extractNumeroAlbaran } from './utils/pdfOrderParser.js'
 import DragReorderList from './DragReorderList.jsx'
 
 const POLL_MS = 12000
@@ -173,7 +175,15 @@ export default function RepartoView() {
   async function handleAlbaranUpload(pedidoId, file) {
     const reader = new FileReader()
     reader.onload = async () => {
-      await api.updatePedido({ id: pedidoId, albaranPdf: reader.result })
+      const dataUrl = reader.result
+      let numeroDetectado = ''
+      try {
+        const texto = await extractTextFromPdf(dataUrl)
+        numeroDetectado = extractNumeroAlbaran(texto)
+      } catch {
+        // PDF no legible como texto; se deja para rellenar a mano.
+      }
+      await api.updatePedido({ id: pedidoId, albaranPdf: dataUrl, numeroAlbaran: numeroDetectado })
       await refresh()
     }
     reader.readAsDataURL(file)

@@ -36,8 +36,11 @@ export const api = {
   deletePedido: (id) => req(`/pedidos?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   getProductos: () => req('/productos'),
-  addProducto: (nombre, formato) => req('/productos', { method: 'POST', body: JSON.stringify({ nombre, formato }) }),
+  addProducto: (nombre, formato, formatos) =>
+    req('/productos', { method: 'POST', body: JSON.stringify({ nombre, formato, formatos }) }),
   deleteProducto: (id) => req(`/productos?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  sincronizarCatalogoBase: () =>
+    req('/productos', { method: 'PUT', body: JSON.stringify({ accion: 'sincronizar-catalogo-base' }) }),
 
   getProduccion: (fecha) => req(`/produccion${fecha ? `?fecha=${fecha}` : ''}`),
   addProduccion: (entry) => req('/produccion', { method: 'POST', body: JSON.stringify(entry) }),
@@ -46,4 +49,24 @@ export const api = {
   getOmitidos: (semana) => req(`/omitidos?semana=${semana}`),
   setOmitido: (semana, clienteId, omitido) =>
     req('/omitidos', { method: 'POST', body: JSON.stringify({ semana, clienteId, omitido }) }),
+
+  getProveedores: () => req('/proveedores'),
+  addProveedor: (nombre) => req('/proveedores', { method: 'POST', body: JSON.stringify({ nombre }) }),
+  deleteProveedor: (id) => req(`/proveedores?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  getMateriasPrimas: () => req('/materias-primas'),
+  addMateriaPrima: (nombre) => req('/materias-primas', { method: 'POST', body: JSON.stringify({ nombre }) }),
+  deleteMateriaPrima: (nombre) => req(`/materias-primas?nombre=${encodeURIComponent(nombre)}`, { method: 'DELETE' }),
+
+  getTrazabilidadProveedores: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return req(`/trazabilidad-proveedores${qs ? `?${qs}` : ''}`)
+  },
+  addTrazabilidadProveedor: (entry) => req('/trazabilidad-proveedores', { method: 'POST', body: JSON.stringify(entry) }),
+  updateTrazabilidadProveedor: (entry) => req('/trazabilidad-proveedores', { method: 'PUT', body: JSON.stringify(entry) }),
+  deleteTrazabilidadProveedor: (id) => req(`/trazabilidad-proveedores?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  getTrazabilidadProduccion: () => req('/trazabilidad-produccion'),
+  addTrazabilidadProduccion: (entry) => req('/trazabilidad-produccion', { method: 'POST', body: JSON.stringify(entry) }),
+  deleteTrazabilidadProduccion: (id) => req(`/trazabilidad-produccion?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
 }

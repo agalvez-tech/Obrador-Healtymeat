@@ -21,7 +21,7 @@ export default function OfficeShell({ onChangeRole }) {
       <header className="app-header">
         <div className="brand">
           <img src="/logo.jpg" alt="HealthyMeat" className="brand-logo" />
-          <span className="brand-name">Oficina</span>
+          <span className="brand-name">Obrador</span>
         </div>
         <button className="btn-ghost" onClick={onChangeRole}>Cambiar modo</button>
       </header>

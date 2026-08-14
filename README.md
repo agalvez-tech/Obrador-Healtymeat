@@ -1,14 +1,18 @@
 # HealthyMeat · Obrador
 
 App con todo el flujo desde que entra un pedido hasta que llega al cliente,
-más el registro de producción del obrador. Dos modos de acceso:
+más el registro de producción y la trazabilidad del obrador. Tres modos de
+acceso, elegidos la primera vez que se abre en cada dispositivo:
 
-- **Oficina**: cuatro pestañas — Pedidos, Producción, Reparto, Clientes.
+- **OBRADOR**: cinco pestañas — Pedidos, Producción, Reparto, Clientes, Exportar.
 - **Repartidor**: desde su propio móvil, ve la ruta del día ya ordenada, su
   GPS en el mapa, y firma cada entrega con el dedo.
+- **TRAZABILIDAD**: dos pestañas — Proveedores (entradas de materia prima) y
+  Producción para trazabilidad (qué materias primas se usaron en cada
+  producto fabricado).
 
-Todo se guarda en una base de datos compartida (Upstash Redis), así que
-oficina y repartidor ven lo mismo en tiempo real desde dispositivos distintos.
+Todo se guarda en una base de datos compartida (Upstash Redis), así que los
+tres modos ven lo mismo en tiempo real desde dispositivos distintos.
 
 ## Pestaña Pedidos
 
@@ -60,11 +64,18 @@ oficina y repartidor ven lo mismo en tiempo real desde dispositivos distintos.
 7. **Nº de pedido**: si el PDF trae una referencia tipo "Pedido de compra Nº
    P-4-2026/000324", se detecta sola y se guarda; si no la detecta, o no es
    un PDF, el campo queda vacío y se puede escribir a mano — nunca es
-   obligatorio. El **Nº de albarán** funciona igual pero se rellena siempre
-   a mano, junto al PDF adjunto.
+   obligatorio. El **Nº de albarán** funciona igual: se detecta solo al
+   subir el PDF del albarán (por ejemplo "Albarán nº ALB2026-482"), y si no
+   se detecta se puede escribir a mano.
 8. Las líneas de producto se pueden **reordenar arrastrando el icono ⠿**
    (mantén pulsado y muévela hacia arriba o abajo) para que salgan en el
    orden que quieras.
+9. **Productos que se miden en kg y en unidades a la vez** (como Solomillo,
+   Chuletón, T-Bone, Pollo Voltereta...): al elegir uno de estos productos en
+   una línea, aparece un botón **"+ Este producto también se mide en
+   [kg/uds] — añadir línea"** justo debajo. Solo hace falta pulsarlo si ese
+   pedido en concreto necesita el producto en los dos formatos; si no, con
+   una línea basta.
 
 ### Alias de productos
 
@@ -82,10 +93,14 @@ mano** (no se autocompleta) y es obligatorio — sin él no se puede guardar el
 registro. De momento este registro es solo un archivo/listado — no está
 conectado con Pedidos ni con el stock.
 
-**El desplegable viene con tus 33 productos ya cargados**, con su formato de
-envasado (bandeja, caja, bolsa, al peso) — al elegir uno, la unidad
-(kg/uds) se autocompleta según el formato, aunque puedes cambiarla si hace
-falta. Añade o quita productos con "Gestionar productos".
+**El desplegable viene con tus 34 productos ya cargados**, con su formato de
+envasado (bandeja, caja, bolsa, al peso) y si se miden en kg, en unidades, o
+en ambas — al elegir uno, la unidad se autocompleta según eso, aunque puedes
+cambiarla si hace falta. Añade, quita o revisa productos con "Gestionar
+productos" — ahí también hay un botón **"Actualizar formatos desde el
+listado base"** por si en el futuro cambias qué productos se miden en kg,
+en uds o en ambas: fusiona el listado base con lo que ya tienes guardado,
+sin borrar productos que hayas añadido a mano.
 
 ## Pestaña Reparto
 
@@ -255,24 +270,91 @@ falta configurar un servicio de envío de correo (por ejemplo Resend), que no
 tenías dado de alta. Si lo quieres, dímelo y lo añado — mientras tanto, este
 botón cubre lo mismo, solo que a demanda en vez de automático.
 
+## Modo Trazabilidad
+
+Tercer modo, junto a OBRADOR y Repartidor en la pantalla de inicio. Pensado
+para cumplir con Sanidad: dejar constancia de qué materia prima entra, y con
+qué materia prima (y qué lote) se ha fabricado cada producto.
+
+### Pestaña Proveedores
+
+Registra cada entrega de materia prima que os llega de vuestros proveedores
+(magro, grasa, cerdo, secreto, envases...).
+
+1. **"+ Subir albarán"**: eliges cómo lo tienes — **foto**, **PDF** o
+   **texto pegado**.
+   - **Con PDF**, intento sacar solo el proveedor (si ya está en tu lista),
+     el número de albarán, la fecha, el producto/materia prima, la
+     cantidad y el lote — probé esto con un albarán real y detectó los dos
+     campos de lote a la vez. Como cada proveedor tiene su propio formato
+     de albarán (a diferencia de los pedidos de clientes, que casi siempre
+     vienen del mismo generador), esto es de "mejor esfuerzo": cuanto más
+     distinto sea el formato del proveedor, más tocará revisar y completar
+     a mano antes de guardar.
+   - **Con foto**, no hay forma de leer el texto automáticamente (no hay
+     motor de reconocimiento de imágenes en la app) — se rellenan todos los
+     campos a mano, pero la foto se guarda igualmente como justificante.
+   - **Con texto pegado**, se aplica el mismo intento de detección que con
+     el PDF.
+2. La **fecha de recepción** se marca sola con la de hoy en cuanto abres el
+   formulario — la puedes cambiar si hace falta, pero no tienes que tocarla
+   normalmente.
+3. La **materia prima** se elige de una lista fija (magro, grasa, longasol,
+   fibracel, agua, sal, pimienta, papel, bandeja, plástico separador,
+   salchichal, cerdo, bolsa, secreto) — si detecto una coincidencia en el
+   texto del albarán, se preselecciona sola.
+4. Si el proveedor no está en tu lista, puedes escribirlo directamente en el
+   formulario (se da de alta solo) o gestionarlos aparte con "Gestionar
+   proveedores". **Todavía no me has pasado el listado de proveedores
+   habituales** — en cuanto lo tengas, mándamelo y te lo dejo precargado
+   como hice con clientes y productos.
+
+### Pestaña Producción para trazabilidad
+
+Aquí conectas lo que ya anotaste en la pestaña Producción (del modo
+OBRADOR) con las materias primas que se usaron para fabricarlo:
+
+1. Marca uno o varios productos de la lista (los que ya tengas registrados
+   en Producción). Los que ya tengan una trazabilidad guardada llevan un
+   aviso "✓ ya trazado", aunque se puede volver a añadir otra si hace falta.
+2. Añade una línea por cada materia prima usada, con cantidad (kg, uds, o
+   "solo lote" si no aplica una cantidad) y el lote correspondiente. Se
+   pueden añadir tantas líneas como materias primas intervengan — no todos
+   los productos usan todas.
+3. "Guardar trazabilidad" archiva el vínculo entre el producto fabricado y
+   sus materias primas, con fecha, para poder consultarlo cuando haga falta.
+
+**Sobre la fórmula automática que mencionaste**: de momento esto es
+completamente manual, tal como pediste. En cuanto me pases la fórmula de
+cantidades por producto, la añado para que las líneas de materia prima se
+rellenen solas al elegir el producto (dejando igualmente la opción de
+corregirlas a mano).
+
 ## Notas técnicas y limitaciones a tener en cuenta
 
 - **Mapa y geocodificación**: OpenStreetMap + Nominatim, gratuitos.
 - **Optimización de ruta**: OSRM público (gratuito, por carretera real). Si
   no responde, se usa distancia en línea recta como alternativa automática.
-- **Albaranes y firmas**: se guardan como PDF/imagen dentro de la propia base
-  de datos (Upstash Redis), sin necesidad de un servicio de almacenamiento
-  aparte. Esto es sencillo pero tiene un límite práctico: evita subir
-  albaranes en PDF muy pesados (escaneados a alta resolución, muchas
-  páginas) — con un PDF de una página tipo albarán normal no hay problema,
-  pero archivos de varios MB podrían fallar al subir por límites del propio
-  Vercel. Si con el tiempo esto da problemas, se puede migrar a un servicio
-  de almacenamiento de archivos (p. ej. Vercel Blob) sin tocar el resto de
-  la app.
-- **Catálogo de productos**: precargado con los 33 que me pasaste; se
-  gestiona (añadir/quitar) desde la pestaña Producción.
-- **Pedidos y producción no están conectados con stock**: de momento son
-  solo un registro/archivo, tal como se pidió.
+- **Albaranes, firmas y fotos de proveedor**: se guardan como PDF/imagen
+  dentro de la propia base de datos (Upstash Redis), sin necesidad de un
+  servicio de almacenamiento aparte. Esto es sencillo pero tiene un límite
+  práctico: evita subir archivos muy pesados (fotos a máxima resolución,
+  PDFs escaneados de muchas páginas) — con un PDF o foto de tamaño normal no
+  hay problema, pero archivos de varios MB podrían fallar al subir por
+  límites del propio Vercel. Si con el tiempo esto da problemas, se puede
+  migrar a un servicio de almacenamiento de archivos (p. ej. Vercel Blob)
+  sin tocar el resto de la app.
+- **Catálogo de productos**: precargado con los 34 que me pasaste (con su
+  clasificación kg/uds/ambas); se gestiona desde la pestaña Producción.
+- **Catálogo de materias primas**: precargado con la lista fija que diste
+  (magro, grasa, longasol, fibracel, agua, sal, pimienta, papel, bandeja,
+  plástico separador, salchichal, cerdo, bolsa, secreto) — se puede ampliar
+  desde el código (`lib/data/materias-primas-seed.json`) si hace falta
+  añadir alguna más adelante.
+- **Proveedores**: todavía no hay ninguno precargado — se dan de alta sobre
+  la marcha al subir el primer albarán, o desde "Gestionar proveedores".
+- **Pedidos, producción y trazabilidad no están conectados con stock**: de
+  momento son solo un registro/archivo, tal como se pidió.
 - **Ver PDFs e imágenes subidos**: se abren en pestaña nueva convirtiéndolos
   en un archivo real en el momento de pulsar el enlace (Chrome bloquea abrir
   directamente un PDF guardado como texto/base64, y se quedaba en blanco).

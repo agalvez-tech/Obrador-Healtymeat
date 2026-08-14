@@ -93,6 +93,22 @@ export function extractNumeroPedido(text) {
   return ''
 }
 
+const NUMERO_ALBARAN_PATTERNS = [
+  /ALBAR[ÁA]N\s*N[ºo°]?\.?\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,40})/i,
+  /N[ºo°]\.?\s*ALBAR[ÁA]N\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,40})/i,
+]
+
+// Busca el número de albarán en el texto del PDF (p. ej. "Albarán nº
+// ALB2026-482"). Igual que el número de pedido, es opcional: si no lo
+// encuentra, devuelve vacío para que se rellene a mano.
+export function extractNumeroAlbaran(text) {
+  for (const pattern of NUMERO_ALBARAN_PATTERNS) {
+    const match = text.match(pattern)
+    if (match) return match[1].trim()
+  }
+  return ''
+}
+
 const CANTIDAD_RE = /(\d{1,4}[.,]\d{2,4})/g
 const FORMATO_RE =
   /(BANDEJA\s*\d*\s*UND[A-Z]*(?:\s*X\s*\d+\s*GR)?|CAJA[S]?\s*(?:DE\s*)?\d*\s*UND[A-Z]*(?:\s*X\s*\d+\s*GR)?|BOLSA[S]?\s*\d*\s*KG|\bKG\b|\bUDS?\b|\bUNIDADES?\b)/i
