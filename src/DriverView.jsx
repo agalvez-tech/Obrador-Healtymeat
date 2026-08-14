@@ -231,7 +231,6 @@ export default function DriverView({ onChangeRole }) {
                 stop={stop}
                 pending={!!pendingIds[stop.pedidoId]}
                 error={stopErrors[stop.pedidoId]}
-                soloLectura={!esHoy}
                 onToggleSinFirma={() => toggleEntregadoSinFirma(stop.pedidoId, !stop.entregado)}
                 onFirmar={() => setSigningPedidoId(stop.pedidoId)}
                 onFocus={() => setFocusStopId(stop.pedidoId)}
@@ -309,7 +308,7 @@ function RouteProgress({ stopsData, total, entregados, onSelect }) {
   )
 }
 
-function StopCard({ stop, pending, error, soloLectura, onToggleSinFirma, onFirmar, onFocus }) {
+function StopCard({ stop, pending, error, onToggleSinFirma, onFirmar, onFocus }) {
   const pedido = stop.pedido
   const tieneAlbaran = !!pedido?.albaranPdf
 
@@ -351,13 +350,7 @@ function StopCard({ stop, pending, error, soloLectura, onToggleSinFirma, onFirma
         {error && <div className="stop-card-warning">{error}</div>}
       </div>
 
-      {soloLectura && (
-        <span className={`badge ${stop.entregado ? 'badge--propio' : 'badge--agencia'}`}>
-          {stop.entregado ? '✓ Entregado' : 'Pendiente'}
-        </span>
-      )}
-
-      {!soloLectura && !stop.entregado && tieneAlbaran && (
+      {!stop.entregado && tieneAlbaran && (
         <button
           className="stop-card-toggle"
           disabled={pending}
@@ -366,7 +359,7 @@ function StopCard({ stop, pending, error, soloLectura, onToggleSinFirma, onFirma
           {pending ? '…' : 'Firmar y entregar'}
         </button>
       )}
-      {!soloLectura && !stop.entregado && !tieneAlbaran && (
+      {!stop.entregado && !tieneAlbaran && (
         <button
           className="stop-card-toggle"
           disabled={pending}
@@ -375,7 +368,7 @@ function StopCard({ stop, pending, error, soloLectura, onToggleSinFirma, onFirma
           {pending ? '…' : 'Marcar entregado'}
         </button>
       )}
-      {!soloLectura && stop.entregado && (
+      {stop.entregado && (
         <button
           className="stop-card-toggle stop-card-toggle--done"
           disabled={pending}
