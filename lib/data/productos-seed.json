@@ -1,0 +1,319 @@
+[
+  {
+    "id": "prod-1",
+    "nombre": "BURGER DE 150 GR HERMANOS DE FUEGO",
+    "formato": "BANDEJA 20 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-2",
+    "nombre": "BURGER DE 180 GR HERMANOS DE FUEGO",
+    "formato": "BANDEJA 20 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-3",
+    "nombre": "BUGER SMASH DE 90 GR",
+    "formato": "BANDEJA 40 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-4",
+    "nombre": "BURGER 170 GR",
+    "formato": "BANDEJA 20 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-5",
+    "nombre": "BURGER 190 GR",
+    "formato": "BANDEJA 20 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-6",
+    "nombre": "PICADA SMASH",
+    "formato": "BOLSA 5 KG",
+    "formatos": [
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-7",
+    "nombre": "ALBONDIGAS",
+    "formato": "BANDEJA 80X80",
+    "formatos": [
+      "uds",
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-8",
+    "nombre": "BURGER MIXTA 100 GR",
+    "formato": "BANDEJA 20 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-9",
+    "nombre": "BURGER DE 160 GR SIROCO",
+    "formato": "BANDEJA 20 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-10",
+    "nombre": "BURGER 150 GR ONE",
+    "formato": "CAJA 150 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-11",
+    "nombre": "BURGER DE 190 GR XX RODOLFO",
+    "formato": "CAJA 100 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-12",
+    "nombre": "BANDEJA DE 80 GR",
+    "formato": "BANDEJA 20 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-13",
+    "nombre": "BURGER DE 100 GR MURALLA",
+    "formato": "CAJA DE 150 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-14",
+    "nombre": "BURGER DE 160 GR MURALLA",
+    "formato": "CAJA DE 135 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-15",
+    "nombre": "BURGER DE 160 GR SAOANA",
+    "formato": "CAJA DE 80 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-16",
+    "nombre": "BURGER DE 200 GR BLACK",
+    "formato": "CAJA 100 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-17",
+    "nombre": "BUGER DE 100 GR HOLLY",
+    "formato": "CAJA 100 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-18",
+    "nombre": "PICADA MADURADA (NESTOR GANDIA)",
+    "formato": "BOLSA 5 KG",
+    "formatos": [
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-19",
+    "nombre": "BURGER DE 180 GR JUANJO",
+    "formato": "CAJAS DE 100 UNIDADES",
+    "formatos": [
+      "uds"
+    ],
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-20",
+    "nombre": "SECRETO FILETE",
+    "formato": "BOLSA 5 KG",
+    "formatos": [
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-21",
+    "nombre": "SECRETO JULIANA",
+    "formato": "BOLSAS 3 KG",
+    "formatos": [
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-22",
+    "nombre": "SECRETO ENTERO",
+    "formato": "AL PESO",
+    "formatos": [
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-23",
+    "nombre": "ENTRECOT 300 GR",
+    "formato": "AL PESO",
+    "formatos": [
+      "uds",
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-24",
+    "nombre": "ENTRECOT TAGOMAGO 2 UNIDADS 250 GR",
+    "formato": "AL PESO",
+    "formatos": [
+      "uds",
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-25",
+    "nombre": "CHULETON 1 KG",
+    "formato": "AL PESO",
+    "formatos": [
+      "uds",
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-26",
+    "nombre": "CHULETON 500 GR",
+    "formato": "AL PESO",
+    "formatos": [
+      "uds",
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-27",
+    "nombre": "T-BONE",
+    "formato": "AL PESO",
+    "formatos": [
+      "uds",
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-28",
+    "nombre": "SOLOMILLO",
+    "formato": "AL PESO",
+    "formatos": [
+      "uds",
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-29",
+    "nombre": "SOLOMILLO TEODORA",
+    "formato": "AL PESO",
+    "formatos": [
+      "uds",
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-30",
+    "nombre": "POLLO VOLTERETA",
+    "formato": "AL PESO",
+    "formatos": [
+      "uds",
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-31",
+    "nombre": "SALCHICHA",
+    "formato": "AL PESO",
+    "formatos": [
+      "uds",
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-32",
+    "nombre": "LONGANIZA",
+    "formato": "AL PESO",
+    "formatos": [
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-33",
+    "nombre": "MORCILLA",
+    "formato": "AL PESO",
+    "formatos": [
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-34",
+    "nombre": "MILHOJAS DE PATATA",
+    "formato": "AL PESO",
+    "formatos": [
+      "uds",
+      "kg"
+    ],
+    "unidadDefecto": "kg"
+  }
+]
