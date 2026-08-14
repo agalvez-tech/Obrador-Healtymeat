@@ -1,21 +1,49 @@
-// Los navegadores modernos (Chrome sobre todo) bloquean la navegación
-// directa a una URL "data:" al abrir pestaña nueva — la pestaña se queda en
-// blanco sin avisar. La solución es convertir el data URL en un Blob real
-// y abrir ese blob: URL en su lugar, que sí se puede abrir sin problema.
-export function openDataUrlInNewTab(dataUrl) {
-  try {
-    const [header, base64] = dataUrl.split(',')
-    const mimeMatch = header.match(/data:(.*?);base64/)
-    const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream'
-    const binary = atob(base64)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-    const blob = new Blob([bytes], { type: mime })
-    const blobUrl = URL.createObjectURL(blob)
-    window.open(blobUrl, '_blank')
-    // Se revoca más tarde, dando tiempo a que la pestaña nueva cargue el archivo
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
-  } catch {
-    alert('No se pudo abrir el archivo.')
+async function req(path, options) {
+  const res = await fetch(`/api${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || `Error ${res.status}`)
   }
+  return res.json()
+}
+
+export const api = {
+  getClients: () => req('/clients'),
+  addClient: (client) => req('/clients', { method: 'POST', body: JSON.stringify(client) }),
+  updateClient: (client) => req('/clients', { method: 'PUT', body: JSON.stringify(client) }),
+  deleteClient: (id) => req(`/clients?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  getRoute: (date) => req(`/route?date=${date}`),
+  saveRoute: (date, stops) => req('/route', { method: 'POST', body: JSON.stringify({ date, stops }) }),
+
+  markDelivered: (date, pedidoId, entregado) =>
+    req('/deliver', { method: 'POST', body: JSON.stringify({ date, pedidoId, entregado }) }),
+
+  firmarPedido: (date, pedidoId, firmaImagen, albaranFirmado) =>
+    req('/firmar', { method: 'POST', body: JSON.stringify({ date, pedidoId, firmaImagen, albaranFirmado }) }),
+
+  getSettings: () => req('/settings'),
+  saveSettings: (settings) => req('/settings', { method: 'POST', body: JSON.stringify(settings) }),
+
+  getPedidos: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return req(`/pedidos${qs ? `?${qs}` : ''}`)
+  },  addPedido: (pedido) => req('/pedidos', { method: 'POST', body: JSON.stringify(pedido) }),
+  updatePedido: (pedido) => req('/pedidos', { method: 'PUT', body: JSON.stringify(pedido) }),
+  deletePedido: (id) => req(`/pedidos?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  getProductos: () => req('/productos'),
+  addProducto: (nombre, formato) => req('/productos', { method: 'POST', body: JSON.stringify({ nombre, formato }) }),
+  deleteProducto: (id) => req(`/productos?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  getProduccion: (fecha) => req(`/produccion${fecha ? `?fecha=${fecha}` : ''}`),
+  addProduccion: (entry) => req('/produccion', { method: 'POST', body: JSON.stringify(entry) }),
+  deleteProduccion: (id) => req(`/produccion?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  getOmitidos: (semana) => req(`/omitidos?semana=${semana}`),
+  setOmitido: (semana, clienteId, omitido) =>
+    req('/omitidos', { method: 'POST', body: JSON.stringify({ semana, clienteId, omitido }) }),
 }

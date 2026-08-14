@@ -1,157 +1,67 @@
-// Palabras que no ayudan a distinguir un producto de otro (conectores,
-// unidades genéricas...). Se ignoran al comparar textos.
-const STOPWORDS = new Set(['DE', 'DEL', 'LA', 'EL', 'LOS', 'LAS', 'Y', 'GR', 'UND', 'UD', 'UDS', 'X'])
+import { haversineKm } from './geocode.js'
 
-// Sinónimos habituales entre cómo pide el cliente y cómo lo llamamos
-// internamente en el catálogo (p. ej. "hamburguesa" en el pedido vs
-// "burger" en nuestros productos).
-const SYNONYMS = {
-  HAMBURGUESA: 'BURGER',
-  HAMBURGUESAS: 'BURGER',
-}
-
-// Alias de frase completa para casos donde el nombre del pedido no se
-// parece nada al del catálogo por palabras sueltas (por ejemplo, "pollo
-// empanado crunchy" es, para nosotros, "Pollo Voltereta"). Se comprueban
-// antes del cálculo genérico por palabras, y tienen prioridad absoluta.
-// Para añadir uno nuevo: { patron: /texto que viene en el pedido/i, nombre: 'NOMBRE EXACTO DEL CATÁLOGO' }
-const ALIAS_FRASE = [
-  { patron: /POLLO.*CRUNCHY|CRUNCHY.*POLLO|POLLO\s+EMPANADO/i, nombre: 'POLLO VOLTERETA' },
-]
-
-function normalize(str) {
-  return String(str || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w) => SYNONYMS[w] || w)
-}
-
-function contentWords(words) {
-  return words.filter((w) => !STOPWORDS.has(w) && w.length > 1)
-}
-
-// Compara dos listas de palabras normalizadas y devuelve una puntuación
-// 0-1 según cuántas palabras "de contenido" del catálogo aparecen (exacta
-// o como subcadena en cualquier dirección) en el texto candidato.
-function similarityScore(candidateWords, catalogWords) {
-  const candidateContent = contentWords(candidateWords)
-  const catalogContent = contentWords(catalogWords)
-  if (catalogContent.length === 0) return 0
-  let hits = 0
-  for (const cw of catalogContent) {
-    const found = candidateContent.some((w) => w === cw || w.includes(cw) || cw.includes(w))
-    if (found) hits += 1
+// Optimiza el orden de las paradas a partir de un punto de partida (depósito).
+// Intenta usar OSRM (distancia real por carretera, servidor público gratuito).
+// Si el servicio público no responde (puede saturarse al ser gratuito),
+// se recurre a un algoritmo de vecino más cercano por línea recta, para que
+// la ruta de hoy siempre se pueda guardar aunque el servicio esté caído.
+export async function optimizeRoute(depot, points) {
+  try {
+    const result = await optimizeWithOSRM(depot, points)
+    return result
+  } catch {
+    return optimizeNearestNeighbor(depot, points)
   }
-  return hits / catalogContent.length
 }
 
-// Intenta encontrar el producto del catálogo que mejor coincide con el
-// texto libre de una línea del pedido. Devuelve null si no hay suficiente
-// confianza, para que la persona lo seleccione a mano.
-export function matchProductoToCatalog(textoProducto, catalogo, threshold = 0.6) {
-  for (const alias of ALIAS_FRASE) {
-    if (alias.patron.test(textoProducto)) {
-      const producto = catalogo.find((p) => p.nombre.toUpperCase() === alias.nombre.toUpperCase())
-      if (producto) return { producto, score: 1 }
-    }
+async function optimizeWithOSRM(depot, points) {
+  if (points.length === 0) return { order: [], method: 'osrm' }
+  if (points.length === 1) return { order: [points[0]], method: 'osrm' }
+
+  const all = [depot, ...points]
+  const coords = all.map((p) => `${p.lng},${p.lat}`).join(';')
+  const url = `https://router.project-osrm.org/trip/v1/driving/${coords}?source=first&roundtrip=false&overview=false`
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8000)
+  let res
+  try {
+    res = await fetch(url, { signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
   }
+  if (!res.ok) throw new Error('osrm-failed')
+  const data = await res.json()
+  if (data.code !== 'Ok' || !data.waypoints) throw new Error('osrm-no-route')
 
-  const candidateWords = normalize(textoProducto)
-  let best = null
-  let bestScore = 0
-  for (const p of catalogo) {
-    const score = similarityScore(candidateWords, normalize(p.nombre))
-    if (score > bestScore) {
-      bestScore = score
-      best = p
-    }
-  }
-  if (best && bestScore >= threshold) {
-    return { producto: best, score: bestScore }
-  }
-  return null
+  // waypoint_index indica la posición de cada punto en la ruta óptima.
+  // El índice 0 es siempre el depósito, así que lo excluimos del resultado.
+  const order = data.waypoints
+    .map((w, i) => ({ originalIndex: i, tripIndex: w.waypoint_index }))
+    .filter((w) => w.originalIndex !== 0)
+    .sort((a, b) => a.tripIndex - b.tripIndex)
+    .map((w) => points[w.originalIndex - 1])
+
+  return { order, method: 'osrm' }
 }
 
-const NUMERO_PEDIDO_PATTERNS = [
-  /PEDIDO\s+DE\s+COMPRA\s*N[ºo°]?\.?\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,40})/i,
-  /N[ºo°]\.?\s*(?:DE\s*)?PEDIDO\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,40})/i,
-  /PEDIDO\s*N[ºo°]?\.?\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,40})/i,
-]
-
-// Busca un número/referencia de pedido en el texto del PDF (p. ej.
-// "PEDIDO DE COMPRA Nº P-4-2026/000324"). Es opcional: si no encuentra
-// nada con confianza razonable, devuelve una cadena vacía.
-export function extractNumeroPedido(text) {
-  for (const pattern of NUMERO_PEDIDO_PATTERNS) {
-    const match = text.match(pattern)
-    if (match) return match[1].trim()
-  }
-  return ''
-}
-
-const CANTIDAD_RE = /(\d{1,4}[.,]\d{2,4})/g
-const FORMATO_RE =
-  /(BANDEJA\s*\d*\s*UND[A-Z]*(?:\s*X\s*\d+\s*GR)?|CAJA[S]?\s*(?:DE\s*)?\d*\s*UND[A-Z]*(?:\s*X\s*\d+\s*GR)?|BOLSA[S]?\s*\d*\s*KG|\bKG\b|\bUDS?\b|\bUNIDADES?\b)/i
-
-function formatCantidad(raw) {
-  const n = parseFloat(raw.replace(',', '.'))
-  if (Number.isNaN(n)) return raw
-  return n % 1 === 0 ? String(n) : String(n)
-}
-
-function guessUnidad(formatoTexto) {
-  if (!formatoTexto) return 'uds'
-  return /KG/i.test(formatoTexto) && !/CAJA|BANDEJA/i.test(formatoTexto) ? 'kg' : 'uds'
-}
-
-// Extrae las líneas de producto (cantidad + texto de producto + formato) de
-// todo el texto de un pedido en PDF, usando los números de cantidad
-// ("2,0000", "45,0000"...) como ancla de cada fila de la tabla.
-export function extractLineasFromText(text) {
-  const flat = text.replace(/\s+/g, ' ')
-  const matches = [...flat.matchAll(CANTIDAD_RE)]
-  const lineas = []
-
-  for (let i = 0; i < matches.length; i++) {
-    const start = matches[i].index + matches[i][0].length
-    const end = i + 1 < matches.length ? matches[i + 1].index : flat.length
-    const chunk = flat.slice(start, end)
-
-    const formatoMatch = chunk.match(FORMATO_RE)
-    const productoTexto = (formatoMatch ? chunk.slice(0, formatoMatch.index) : chunk)
-      .replace(/\s+/g, ' ')
-      .trim()
-
-    if (!productoTexto) continue
-
-    lineas.push({
-      cantidadRaw: formatCantidad(matches[i][1]),
-      productoTexto,
-      formatoTexto: formatoMatch ? formatoMatch[0].trim() : '',
-      unidadSugerida: guessUnidad(formatoMatch ? formatoMatch[0] : ''),
+function optimizeNearestNeighbor(depot, points) {
+  const remaining = [...points]
+  const order = []
+  let current = depot
+  while (remaining.length) {
+    let bestIdx = 0
+    let bestDist = Infinity
+    remaining.forEach((p, i) => {
+      const d = haversineKm(current, p)
+      if (d < bestDist) {
+        bestDist = d
+        bestIdx = i
+      }
     })
+    current = remaining[bestIdx]
+    order.push(current)
+    remaining.splice(bestIdx, 1)
   }
-
-  return lineas
-}
-
-// Combina la extracción de líneas con el cruce contra el catálogo. Cada
-// línea resultante trae `producto` ya rellenado si hay coincidencia fiable,
-// o vacío si no, para que la persona lo seleccione manualmente.
-export function extractLineasConCatalogo(text, catalogo) {
-  return extractLineasFromText(text).map((linea, i) => {
-    const match = matchProductoToCatalog(linea.productoTexto, catalogo)
-    return {
-      id: `linea-${Date.now()}-${i}`,
-      producto: match ? match.producto.nombre : '',
-      textoOriginal: linea.productoTexto,
-      cantidad: linea.cantidadRaw,
-      unidad: match?.producto.unidadDefecto || linea.unidadSugerida,
-      lote: '',
-    }
-  })
+  return { order, method: 'straight-line' }
 }

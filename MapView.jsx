@@ -1,177 +1,116 @@
-import { useEffect, useRef, useState } from 'react'
-import { api } from './utils/api.js'
-import { geocodeStops } from './utils/geocode.js'
-import { parseDeliveryCSV } from './utils/csv.js'
-import ClientForm from './ClientForm.jsx'
-import WeeklyClientStatus from './WeeklyClientStatus.jsx'
+import { useEffect, useRef } from 'react'
+import L from 'leaflet'
 
-export default function ClientesView() {
-  const [vista, setVista] = useState('lista') // 'lista' | 'semanal'
-  const [clients, setClients] = useState([])
-  const [loadingClients, setLoadingClients] = useState(true)
-  const [formTarget, setFormTarget] = useState(null)
-  const [filter, setFilter] = useState('')
-  const [tipoFilter, setTipoFilter] = useState('todos')
-  const [importing, setImporting] = useState(false)
-  const [importProgress, setImportProgress] = useState(null)
-  const fileInputRef = useRef(null)
+// Iconos personalizados con los colores de marca, en vez de los pines
+// por defecto de Leaflet (que no encajan con la identidad RK).
+function makeDivIcon(color, label, pulse) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="stop-pin ${pulse ? 'stop-pin--live' : ''}" style="--pin-color:${color}">${label ?? ''}</div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  })
+}
 
-  async function refreshClients() {
-    const data = await api.getClients()
-    setClients(data)
-    setLoadingClients(false)
-  }
+export default function MapView({ stops, currentPosition, focusStopId }) {
+  const mapRef = useRef(null)
+  const leafletMap = useRef(null)
+  const markersRef = useRef({})
+  const meMarkerRef = useRef(null)
+  const hasCentered = useRef(false)
 
   useEffect(() => {
-    refreshClients()
+    leafletMap.current = L.map(mapRef.current, {
+      zoomControl: true,
+      attributionControl: true,
+    }).setView([39.4699, -0.3763], 12) // Valencia por defecto hasta tener GPS
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap',
+    }).addTo(leafletMap.current)
+
+    return () => {
+      leafletMap.current.remove()
+    }
   }, [])
 
-  async function handleSaveClient(data) {
-    if (data.id) {
-      await api.updateClient(data)
+  // Marcador de "mi ubicación"
+  useEffect(() => {
+    if (!leafletMap.current || !currentPosition) return
+    const { lat, lng } = currentPosition
+
+    if (!meMarkerRef.current) {
+      meMarkerRef.current = L.marker([lat, lng], {
+        icon: makeDivIcon('#1E5FBF', '', true),
+        zIndexOffset: 1000,
+      }).addTo(leafletMap.current)
     } else {
-      await api.addClient(data)
+      meMarkerRef.current.setLatLng([lat, lng])
     }
-    await refreshClients()
-    setFormTarget(null)
-  }
 
-  async function handleDeleteClient(id) {
-    if (!confirm('¿Eliminar este cliente de la lista habitual?')) return
-    await api.deleteClient(id)
-    await refreshClients()
-  }
+    if (!hasCentered.current) {
+      leafletMap.current.setView([lat, lng], 13)
+      hasCentered.current = true
+    }
+  }, [currentPosition])
 
-  async function handleImportCSV(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setImporting(true)
-    setImportProgress('Leyendo CSV…')
-    try {
-      const parsed = await parseDeliveryCSV(file)
-      let done = 0
-      await geocodeStops(parsed, () => {
-        done += 1
-        setImportProgress(`Localizando direcciones… ${done}/${parsed.length}`)
-      })
-      for (const p of parsed) {
-        setImportProgress(`Guardando clientes… ${parsed.indexOf(p) + 1}/${parsed.length}`)
-        await api.addClient({
-          nombre: p.nombre,
-          direccion: p.direccion,
-          telefono: p.telefono,
-          dias: p.dias,
-          horario: p.horario,
-          notas: p.notas,
-          lat: p.lat,
-          lng: p.lng,
-          tipoEntrega: 'propio',
-        })
+  // Marcadores de paradas
+  useEffect(() => {
+    if (!leafletMap.current) return
+    const map = leafletMap.current
+    const seen = new Set()
+
+    stops.forEach((stop) => {
+      if (!stop.lat || !stop.lng) return
+      seen.add(stop.id)
+      const color = stop.entregado ? '#2F7A4D' : '#CF731B'
+      const label = stop.entregado ? '✓' : stop.orden
+
+      if (markersRef.current[stop.id]) {
+        markersRef.current[stop.id].setIcon(makeDivIcon(color, label))
+        markersRef.current[stop.id].setLatLng([stop.lat, stop.lng])
+      } else {
+        const marker = L.marker([stop.lat, stop.lng], { icon: makeDivIcon(color, label) })
+          .addTo(map)
+          .bindPopup(`<strong>${stop.orden}. ${escapeHtml(stop.nombre)}</strong><br>${escapeHtml(stop.direccion)}`)
+        markersRef.current[stop.id] = marker
       }
-      await refreshClients()
-      setImportProgress(`Importados ${parsed.length} clientes.`)
-    } catch (err) {
-      setImportProgress(err.message || 'No se pudo importar el CSV.')
-    } finally {
-      setImporting(false)
-      e.target.value = ''
-      setTimeout(() => setImportProgress(null), 4000)
+    })
+
+    Object.keys(markersRef.current).forEach((id) => {
+      if (!seen.has(id)) {
+        markersRef.current[id].remove()
+        delete markersRef.current[id]
+      }
+    })
+
+    // Si no tenemos GPS aún, encuadrar el mapa a las paradas geocodificadas
+    if (!hasCentered.current) {
+      const coords = stops.filter((s) => s.lat && s.lng).map((s) => [s.lat, s.lng])
+      if (coords.length > 0) {
+        map.fitBounds(coords, { padding: [40, 40], maxZoom: 14 })
+        hasCentered.current = true
+      }
     }
-  }
+  }, [stops])
 
-  const filteredClients = clients.filter((c) => {
-    if (tipoFilter !== 'todos' && c.tipoEntrega !== tipoFilter) return false
-    const q = filter.trim().toLowerCase()
-    if (!q) return true
-    return c.nombre.toLowerCase().includes(q) || (c.direccion || '').toLowerCase().includes(q)
-  })
+  // Centrar en una parada concreta cuando se toca en la lista
+  useEffect(() => {
+    if (!focusStopId || !leafletMap.current) return
+    const marker = markersRef.current[focusStopId]
+    if (marker) {
+      leafletMap.current.setView(marker.getLatLng(), 16, { animate: true })
+      marker.openPopup()
+    }
+  }, [focusStopId])
 
-  return (
-    <div className="tab-view">
-      <div className="tab-view-header">
-        <h2>Clientes</h2>
-        <div className="office-section-actions">
-          <button className="btn-secondary" onClick={() => fileInputRef.current?.click()} disabled={importing}>
-            Importar CSV
-          </button>
-          <button className="btn-primary btn-primary--small" onClick={() => setFormTarget('new')}>
-            + Nuevo cliente
-          </button>
-        </div>
-      </div>
+  return <div ref={mapRef} className="map-view" />
+}
 
-      <div className="pill-tabs">
-        <button className={`pill-tab ${vista === 'lista' ? 'pill-tab--active' : ''}`} onClick={() => setVista('lista')}>Lista</button>
-        <button className={`pill-tab ${vista === 'semanal' ? 'pill-tab--active' : ''}`} onClick={() => setVista('semanal')}>Vista semanal</button>
-      </div>
-
-      {vista === 'semanal' && <WeeklyClientStatus clients={clients} />}
-
-      {vista === 'lista' && (
-        <>
-          {importProgress && <p className="office-status-muted">{importProgress}</p>}
-
-          <div className="pill-tabs">
-            <button className={`pill-tab ${tipoFilter === 'todos' ? 'pill-tab--active' : ''}`} onClick={() => setTipoFilter('todos')}>Todos</button>
-            <button className={`pill-tab ${tipoFilter === 'propio' ? 'pill-tab--active' : ''}`} onClick={() => setTipoFilter('propio')}>Reparto propio</button>
-            <button className={`pill-tab ${tipoFilter === 'agencia' ? 'pill-tab--active' : ''}`} onClick={() => setTipoFilter('agencia')}>Agencia</button>
-          </div>
-
-          <input
-            className="field-input"
-            placeholder="Buscar por nombre o dirección…"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
-
-          {loadingClients && <p className="office-status-muted">Cargando clientes…</p>}
-          {!loadingClients && filteredClients.length === 0 && (
-            <p className="office-status-muted">No hay clientes que coincidan.</p>
-          )}
-
-          <div className="client-list">
-            {filteredClients.map((c) => (
-              <div key={c.id} className="client-row">
-                <div className="client-row-body">
-                  <div className="client-row-name">
-                    {c.nombre}
-                    <span className={`badge ${c.tipoEntrega === 'agencia' ? 'badge--agencia' : 'badge--propio'}`}>
-                      {c.tipoEntrega === 'agencia' ? 'Agencia' : 'Propio'}
-                    </span>
-                  </div>
-                  {c.direccion && <div className="client-row-address">{c.direccion}</div>}
-                  {(c.dias || c.horario) && (
-                    <div className="client-row-schedule">
-                      {c.dias && <span className="client-row-days">{c.dias}</span>}
-                      {c.horario && <span>{c.horario}</span>}
-                    </div>
-                  )}
-                </div>
-                <div className="client-row-actions">
-                  <button className="btn-icon" onClick={() => setFormTarget(c)} aria-label="Editar">✎</button>
-                  <button className="btn-icon" onClick={() => handleDeleteClient(c.id)} aria-label="Eliminar">🗑</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".csv"
-        onChange={handleImportCSV}
-        style={{ display: 'none' }}
-      />
-
-      {formTarget && (
-        <ClientForm
-          initial={formTarget === 'new' ? null : formTarget}
-          onCancel={() => setFormTarget(null)}
-          onSave={handleSaveClient}
-        />
-      )}
-    </div>
-  )
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 }

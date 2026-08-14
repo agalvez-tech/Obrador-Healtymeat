@@ -1,37 +1,200 @@
-// Calcula la próxima fecha (a partir de hoy) que coincide con alguno de los
-// días habituales del cliente. "dias" es un texto tipo "L", "X", "LJ", "LMXJV"...
-// L=lunes M=martes X=miércoles J=jueves V=viernes S=sábado D=domingo.
-const DAY_CODES = { D: 0, L: 1, M: 2, X: 3, J: 4, V: 5, S: 6 }
-
-export function nextDeliveryDate(dias, from = new Date()) {
-  const codes = (dias || '')
-    .toUpperCase()
-    .split('')
-    .map((c) => DAY_CODES[c])
-    .filter((n) => n !== undefined)
-
-  const base = new Date(from)
-  base.setHours(0, 0, 0, 0)
-
-  if (codes.length === 0) {
-    // Sin días habituales conocidos: por defecto, el día siguiente.
-    base.setDate(base.getDate() + 1)
-    return toISO(base)
+[
+  {
+    "id": "prod-1",
+    "nombre": "BURGER DE 150 GR HERMANOS DE FUEGO",
+    "formato": "BANDEJA 20 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-2",
+    "nombre": "BURGER DE 180 GR HERMANOS DE FUEGO",
+    "formato": "BANDEJA 20 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-3",
+    "nombre": "BUGER SMASH DE 90 GR",
+    "formato": "BANDEJA 40 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-4",
+    "nombre": "BURGER 170 GR",
+    "formato": "BANDEJA 20 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-5",
+    "nombre": "BURGER 190 GR",
+    "formato": "BANDEJA 20 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-6",
+    "nombre": "PICADA SMASH",
+    "formato": "BOLSA 5 KG",
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-7",
+    "nombre": "ALBONDIGAS",
+    "formato": "BANDEJA 80X80",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-8",
+    "nombre": "BURGER MIXTA 100 GR",
+    "formato": "BANDEJA 20 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-9",
+    "nombre": "BURGER DE 160 GR SIROCO",
+    "formato": "BANDEJA 20 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-10",
+    "nombre": "BURGER 150 GR ONE",
+    "formato": "CAJA 150 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-11",
+    "nombre": "BURGER DE 190 GR XX RODOLFO",
+    "formato": "CAJA 100 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-12",
+    "nombre": "BANDEJA DE 80 GR",
+    "formato": "BANDEJA 20 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-13",
+    "nombre": "BURGER DE 100 GR MURALLA",
+    "formato": "CAJA DE 150 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-14",
+    "nombre": "BURGER DE 160 GR MURALLA",
+    "formato": "CAJA DE 135 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-15",
+    "nombre": "BURGER DE 160 GR SAOANA",
+    "formato": "CAJA DE 80 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-16",
+    "nombre": "BURGER DE 200 GR BLACK",
+    "formato": "CAJA 100 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-17",
+    "nombre": "BUGER DE 100 GR HOLLY",
+    "formato": "CAJA 100 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-18",
+    "nombre": "PICADA MADURADA (NESTOR GANDIA)",
+    "formato": "BOLSA 5 KG",
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-19",
+    "nombre": "BURGER DE 180 GR JUANJO",
+    "formato": "CAJAS DE 100 UNIDADES",
+    "unidadDefecto": "uds"
+  },
+  {
+    "id": "prod-20",
+    "nombre": "SECRETO FILETE",
+    "formato": "BOLSA 5 KG",
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-21",
+    "nombre": "SECRETO JULIANA",
+    "formato": "BOLSAS 3 KG",
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-22",
+    "nombre": "SECRETO ENTERO",
+    "formato": "AL PESO",
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-23",
+    "nombre": "ENTRECOT 300 GR",
+    "formato": "AL PESO",
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-24",
+    "nombre": "ENTRECOT TAGOMAGO 2 UNIDADS 250 GR",
+    "formato": "AL PESO",
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-25",
+    "nombre": "CHULETON 1 KG",
+    "formato": "AL PESO",
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-26",
+    "nombre": "CHULETON 500 GR",
+    "formato": "AL PESO",
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-27",
+    "nombre": "T-BONE",
+    "formato": "AL PESO",
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-28",
+    "nombre": "SOLOMILLO",
+    "formato": "AL PESO",
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-29",
+    "nombre": "SOLOMILLO TEODORA",
+    "formato": "AL PESO",
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-30",
+    "nombre": "POLLO VOLTERETA",
+    "formato": "AL PESO",
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-31",
+    "nombre": "SALCHICHA",
+    "formato": "AL PESO",
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-32",
+    "nombre": "LONGANIZA",
+    "formato": "AL PESO",
+    "unidadDefecto": "kg"
+  },
+  {
+    "id": "prod-33",
+    "nombre": "MORCILLA",
+    "formato": "AL PESO",
+    "unidadDefecto": "kg"
   }
-
-  for (let offset = 0; offset < 8; offset++) {
-    const d = new Date(base)
-    d.setDate(d.getDate() + offset)
-    if (codes.includes(d.getDay())) {
-      return toISO(d)
-    }
-  }
-  return toISO(base)
-}
-
-function toISO(d) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
+]

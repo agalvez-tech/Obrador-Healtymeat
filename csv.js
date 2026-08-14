@@ -1,226 +1,84 @@
-import { useEffect, useState } from 'react'
-import { api } from './utils/api.js'
-import { todayISO, formatDateLong } from './utils/date.js'
+import Papa from 'papaparse'
 
-export default function ProduccionView() {
-  const [productos, setProductos] = useState([])
-  const [entries, setEntries] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [fecha, setFecha] = useState(todayISO())
-  const [producto, setProducto] = useState('')
-  const [lote, setLote] = useState('')
-  const [cantidad, setCantidad] = useState('')
-  const [unidad, setUnidad] = useState('kg')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState(null)
-  const [showManageProducts, setShowManageProducts] = useState(false)
-
-  async function refresh() {
-    const [productosData, entriesData] = await Promise.all([api.getProductos(), api.getProduccion()])
-    setProductos(productosData)
-    setEntries(entriesData)
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    refresh()
-  }, [])
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    if (!producto || !cantidad.trim()) {
-      setError('Selecciona el producto e indica la cantidad.')
-      return
-    }
-    if (!lote.trim()) {
-      setError('Indica el número de lote.')
-      return
-    }
-    setSaving(true)
-    setError(null)
-    try {
-      await api.addProduccion({ fecha, producto, lote: lote.trim(), cantidad: cantidad.trim(), unidad })
-      setLote('')
-      setCantidad('')
-      await refresh()
-    } catch (err) {
-      setError(err.message || 'No se pudo guardar.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleDelete(id) {
-    if (!confirm('¿Eliminar este registro de producción?')) return
-    await api.deleteProduccion(id)
-    setEntries((prev) => prev.filter((e) => e.id !== id))
-  }
-
-  return (
-    <div className="tab-view">
-      <div className="tab-view-header">
-        <h2>Producción del obrador</h2>
-        <button className="btn-secondary" onClick={() => setShowManageProducts(true)}>Gestionar productos</button>
-      </div>
-
-      <form className="office-section production-form" onSubmit={handleSubmit}>
-        <div className="field-row field-row--3">
-          <div>
-            <label className="field-label">Fecha</label>
-            <input type="date" className="field-input" value={fecha} onChange={(e) => setFecha(e.target.value)} />
-          </div>
-          <div>
-            <label className="field-label">Producto</label>
-            <select
-              className="field-input"
-              value={producto}
-              onChange={(e) => {
-                const nombre = e.target.value
-                setProducto(nombre)
-                const match = productos.find((p) => p.nombre === nombre)
-                if (match?.unidadDefecto) setUnidad(match.unidadDefecto)
-              }}
-            >
-              <option value="">Selecciona…</option>
-              {productos.map((p) => (
-                <option key={p.id} value={p.nombre}>
-                  {p.nombre}{p.formato ? ` — ${p.formato}` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="field-label">Lote</label>
-            <input className="field-input" value={lote} onChange={(e) => setLote(e.target.value)} placeholder="Nº de lote" />
-          </div>
-        </div>
-
-        <div className="field-row">
-          <div>
-            <label className="field-label">Cantidad</label>
-            <input className="field-input" value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="Cantidad" />
-          </div>
-          <div>
-            <label className="field-label">Unidad</label>
-            <select className="field-input" value={unidad} onChange={(e) => setUnidad(e.target.value)}>
-              <option value="kg">kg</option>
-              <option value="uds">uds</option>
-            </select>
-          </div>
-        </div>
-
-        {error && <p className="upload-error">{error}</p>}
-        {productos.length === 0 && !loading && (
-          <p className="office-status-muted">
-            Todavía no hay productos en el catálogo. Añádelos con "Gestionar productos".
-          </p>
-        )}
-
-        <button type="submit" className="btn-primary" disabled={saving || productos.length === 0 || !lote.trim()}>
-          {saving ? 'Guardando…' : '+ Añadir a producción'}
-        </button>
-      </form>
-
-      <section className="office-section">
-        <h2>Registro de producción</h2>
-        {loading && <p className="office-status-muted">Cargando…</p>}
-        {!loading && entries.length === 0 && <p className="office-status-muted">Todavía no hay nada registrado.</p>}
-        <div className="production-list">
-          {entries.map((e) => (
-            <div key={e.id} className="production-row">
-              <div className="production-row-date mono">{e.fecha}</div>
-              <div className="production-row-body">
-                <div className="production-row-name">{e.producto}</div>
-                <div className="office-status-muted">
-                  {e.cantidad} {e.unidad}{e.lote ? ` · lote ${e.lote}` : ''}
-                </div>
-              </div>
-              <button className="btn-icon" onClick={() => handleDelete(e.id)} aria-label="Eliminar">🗑</button>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {showManageProducts && (
-        <ManageProductsModal
-          productos={productos}
-          onClose={() => setShowManageProducts(false)}
-          onChange={refresh}
-        />
-      )}
-    </div>
-  )
+// Quita acentos y pasa a minúsculas para comparar cabeceras de forma flexible
+function normalize(str) {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
 }
 
-function ManageProductsModal({ productos, onClose, onChange }) {
-  const [nombre, setNombre] = useState('')
-  const [formato, setFormato] = useState('')
-  const [error, setError] = useState(null)
-  const [saving, setSaving] = useState(false)
+const FIELD_ALIASES = {
+  nombre: ['nombre', 'cliente', 'parada', 'punto', 'destinatario'],
+  direccion: ['direccion', 'address', 'domicilio'],
+  items: ['entregar', 'que entregar', 'pedido', 'items', 'articulos', 'contenido', 'productos'],
+  telefono: ['telefono', 'tel', 'movil', 'contacto'],
+  notas: ['notas', 'observaciones', 'comentarios'],
+  dias: ['dias', 'dia', 'dias habituales'],
+  horario: ['horario', 'horarios', 'franja horaria'],
+  lat: ['lat', 'latitud'],
+  lng: ['lng', 'lon', 'long', 'longitud'],
+}
 
-  async function handleAdd(e) {
-    e.preventDefault()
-    if (!nombre.trim()) return
-    setSaving(true)
-    setError(null)
-    try {
-      await api.addProducto(nombre.trim(), formato.trim())
-      setNombre('')
-      setFormato('')
-      await onChange()
-    } catch (err) {
-      setError(err.message || 'No se pudo añadir.')
-    } finally {
-      setSaving(false)
-    }
+function mapHeaders(headers) {
+  const map = {}
+  const normalizedHeaders = headers.map(normalize)
+  for (const [field, aliases] of Object.entries(FIELD_ALIASES)) {
+    const idx = normalizedHeaders.findIndex((h) => aliases.includes(h))
+    if (idx !== -1) map[field] = headers[idx]
   }
+  return map
+}
 
-  async function handleDelete(id) {
-    await api.deleteProducto(id)
-    await onChange()
-  }
+// Parsea un fichero CSV y devuelve un array de paradas normalizadas.
+// Detecta automáticamente el delimitador (, o ;) y las columnas relevantes
+// aunque el CSV venga con cabeceras en otro orden o con acentos distintos.
+export function parseDeliveryCSV(file) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      encoding: 'utf-8',
+      complete: (results) => {
+        try {
+          const headers = results.meta.fields || []
+          const map = mapHeaders(headers)
 
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal client-form" onClick={(e) => e.stopPropagation()}>
-        <h3>Productos del obrador</h3>
-        <form onSubmit={handleAdd}>
-          <label className="field-label">Nombre</label>
-          <input
-            className="field-input"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            placeholder="Nombre del producto"
-          />
-          <label className="field-label">Formato (opcional)</label>
-          <div className="depot-edit">
-            <input
-              className="field-input"
-              value={formato}
-              onChange={(e) => setFormato(e.target.value)}
-              placeholder="Bandeja 20 unidades"
-            />
-            <button className="btn-secondary" type="submit" disabled={saving}>Añadir</button>
-          </div>
-        </form>
-        {error && <p className="upload-error">{error}</p>}
+          if (!map.direccion) {
+            reject(new Error('No encuentro una columna de dirección en el CSV. Revisa que exista una columna "Dirección".'))
+            return
+          }
 
-        <div className="product-list">
-          {productos.map((p) => (
-            <div key={p.id} className="product-row">
-              <span>
-                {p.nombre}
-                {p.formato && <span className="office-status-muted"> — {p.formato}</span>}
-              </span>
-              <button className="btn-icon" onClick={() => handleDelete(p.id)} aria-label="Eliminar">🗑</button>
-            </div>
-          ))}
-        </div>
+          const stops = results.data
+            .filter((row) => row[map.direccion] && String(row[map.direccion]).trim())
+            .map((row, i) => ({
+              id: `stop-${Date.now()}-${i}`,
+              orden: i + 1,
+              nombre: (map.nombre && row[map.nombre]) || `Parada ${i + 1}`,
+              direccion: String(row[map.direccion]).trim(),
+              items: (map.items && row[map.items]) || '',
+              telefono: (map.telefono && row[map.telefono]) || '',
+              notas: (map.notas && row[map.notas]) || '',
+              dias: (map.dias && row[map.dias]) || '',
+              horario: (map.horario && row[map.horario]) || '',
+              lat: map.lat && row[map.lat] ? parseFloat(row[map.lat]) : null,
+              lng: map.lng && row[map.lng] ? parseFloat(row[map.lng]) : null,
+              entregado: false,
+              geocodeStatus: map.lat && map.lng && row[map.lat] && row[map.lng] ? 'ok' : 'pendiente',
+            }))
 
-        <div className="modal-actions">
-          <button type="button" className="btn-primary btn-primary--small" onClick={onClose}>Cerrar</button>
-        </div>
-      </div>
-    </div>
-  )
+          if (stops.length === 0) {
+            reject(new Error('El CSV no contiene ninguna fila con dirección.'))
+            return
+          }
+
+          resolve(stops)
+        } catch (e) {
+          reject(e)
+        }
+      },
+      error: (err) => reject(err),
+    })
+  })
 }

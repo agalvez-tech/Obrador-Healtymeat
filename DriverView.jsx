@@ -1,82 +1,389 @@
-const CACHE_KEY = 'rk-reparto-geocode-cache'
+import { useEffect, useState } from 'react'
+import MapView from './MapView.jsx'
+import SignaturePad from './SignaturePad.jsx'
+import { api } from './utils/api.js'
+import { todayISO, formatDateLong, getWeekDates, addDaysISO } from './utils/date.js'
+import { mergeSignatureIntoPdf } from './utils/pdfSign.js'
+import { openDataUrlInNewTab } from './utils/openDataUrl.js'
 
-function loadCache() {
-  try {
-    return JSON.parse(localStorage.getItem(CACHE_KEY)) || {}
-  } catch {
-    return {}
-  }
+const ROUTE_POLL_MS = 15000
+
+function googleMapsDirectionsUrl(stop) {
+  const destino = stop.lat && stop.lng ? `${stop.lat},${stop.lng}` : encodeURIComponent(stop.direccion || '')
+  return `https://www.google.com/maps/dir/?api=1&destination=${destino}&travelmode=driving`
 }
 
-function saveCache(cache) {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cache))
-  } catch {
-    // si el cache no cabe, no pasa nada, simplemente no se guarda
-  }
-}
+export default function DriverView({ onChangeRole }) {
+  const [clients, setClients] = useState([])
+  const [pedidosById, setPedidosById] = useState({})
+  const [route, setRoute] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
+  const [currentPosition, setCurrentPosition] = useState(null)
+  const [gpsError, setGpsError] = useState(null)
+  const [focusStopId, setFocusStopId] = useState(null)
+  const [pendingIds, setPendingIds] = useState({})
+  const [stopErrors, setStopErrors] = useState({})
+  const [signingPedidoId, setSigningPedidoId] = useState(null)
 
-const cache = loadCache()
+  const today = todayISO()
+  const [viewDate, setViewDate] = useState(today)
+  const [weekAnchor, setWeekAnchor] = useState(today)
+  const [weekSummary, setWeekSummary] = useState({})
+  const weekDates = getWeekDates(weekAnchor)
+  const esHoy = viewDate === today
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-// Geocodifica una dirección usando Nominatim (OpenStreetMap), gratuito.
-// Añade "Valencia, España" si la dirección no parece incluir ya una ciudad/país,
-// para mejorar la precisión en el área habitual de reparto.
-async function geocodeOne(direccion) {
-  const key = direccion.trim().toLowerCase()
-  if (cache[key]) return cache[key]
-
-  const hasContext = /valencia|espa|spain/i.test(direccion)
-  const query = hasContext ? direccion : `${direccion}, Valencia, España`
-
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`
-  const res = await fetch(url, { headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error('geocode-failed')
-  const data = await res.json()
-  if (!data || data.length === 0) return null
-
-  const result = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }
-  cache[key] = result
-  saveCache(cache)
-  return result
-}
-
-export async function geocodeAddress(direccion) {
-  return geocodeOne(direccion)
-}
-
-// Geocodifica una lista de paradas en orden, respetando ~1.1s entre peticiones
-// (política de uso de Nominatim), llamando a onProgress tras cada una.
-export async function geocodeStops(stops, onProgress) {
-  for (const stop of stops) {
-    if (stop.lat && stop.lng) {
-      onProgress(stop.id, { lat: stop.lat, lng: stop.lng, geocodeStatus: 'ok' })
-      continue
-    }
+  async function loadEverything() {
     try {
-      const coords = await geocodeOne(stop.direccion)
-      if (coords) {
-        onProgress(stop.id, { ...coords, geocodeStatus: 'ok' })
+      const [clientsData, routeData] = await Promise.all([api.getClients(), api.getRoute(viewDate)])
+      setClients(clientsData)
+      setRoute(routeData)
+
+      if (routeData?.stops?.length) {
+        const pedidos = await Promise.all(
+          routeData.stops.map((s) => api.getPedidos({ id: s.pedidoId }))
+        )
+        const map = {}
+        routeData.stops.forEach((s, i) => {
+          if (pedidos[i]) map[s.pedidoId] = pedidos[i]
+        })
+        setPedidosById(map)
       } else {
-        onProgress(stop.id, { geocodeStatus: 'error' })
+        setPedidosById({})
       }
-    } catch {
-      onProgress(stop.id, { geocodeStatus: 'error' })
+      setLoadError(null)
+    } catch (err) {
+      setLoadError(err.message || 'No se pudo cargar la ruta.')
+    } finally {
+      setLoading(false)
     }
-    await sleep(1100)
   }
+
+  async function loadWeekSummary() {
+    try {
+      const routes = await Promise.all(weekDates.map((d) => api.getRoute(d.iso)))
+      const summary = {}
+      weekDates.forEach((d, i) => {
+        const r = routes[i]
+        summary[d.iso] = {
+          total: r?.stops?.length || 0,
+          entregados: r?.stops?.filter((s) => s.entregado).length || 0,
+        }
+      })
+      setWeekSummary(summary)
+    } catch {
+      // Si falla el resumen semanal no bloqueamos el resto de la pantalla
+    }
+  }
+
+  useEffect(() => {
+    setLoading(true)
+    loadEverything()
+    const interval = setInterval(loadEverything, ROUTE_POLL_MS)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewDate])
+
+  useEffect(() => {
+    loadWeekSummary()
+    const interval = setInterval(loadWeekSummary, ROUTE_POLL_MS)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekAnchor])
+
+  useEffect(() => {
+    if (!('geolocation' in navigator)) {
+      setGpsError('Este dispositivo no admite geolocalización.')
+      return
+    }
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setCurrentPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setGpsError(null)
+      },
+      (err) => setGpsError(err.message || 'No se pudo obtener tu ubicación.'),
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    )
+    return () => navigator.geolocation.clearWatch(watchId)
+  }, [])
+
+  async function toggleEntregadoSinFirma(pedidoId, next) {
+    setPendingIds((p) => ({ ...p, [pedidoId]: true }))
+    setStopErrors((e) => ({ ...e, [pedidoId]: null }))
+    setRoute((prev) => ({
+      ...prev,
+      stops: prev.stops.map((s) => (s.pedidoId === pedidoId ? { ...s, entregado: next } : s)),
+    }))
+    try {
+      await api.markDelivered(viewDate, pedidoId, next)
+      await loadEverything()
+    } catch (err) {
+      setRoute((prev) => ({
+        ...prev,
+        stops: prev.stops.map((s) => (s.pedidoId === pedidoId ? { ...s, entregado: !next } : s)),
+      }))
+      setStopErrors((e) => ({ ...e, [pedidoId]: 'No se pudo guardar. Comprueba la conexión y vuelve a intentarlo.' }))
+    } finally {
+      setPendingIds((p) => ({ ...p, [pedidoId]: false }))
+    }
+  }
+
+  async function handleFirmaConfirmada(pedidoId, firmaPng) {
+    setPendingIds((p) => ({ ...p, [pedidoId]: true }))
+    setStopErrors((e) => ({ ...e, [pedidoId]: null }))
+    try {
+      const pedido = pedidosById[pedidoId]
+      let albaranFirmado = null
+      if (pedido?.albaranPdf) {
+        try {
+          albaranFirmado = await mergeSignatureIntoPdf(pedido.albaranPdf, firmaPng)
+        } catch {
+          albaranFirmado = null
+        }
+      }
+      await api.firmarPedido(viewDate, pedidoId, firmaPng, albaranFirmado)
+      setSigningPedidoId(null)
+      await loadEverything()
+    } catch (err) {
+      setStopErrors((e) => ({ ...e, [pedidoId]: 'No se pudo guardar la firma. Vuelve a intentarlo.' }))
+    } finally {
+      setPendingIds((p) => ({ ...p, [pedidoId]: false }))
+    }
+  }
+
+  const stopsWithData = (route?.stops || [])
+    .map((s) => {
+      const pedido = pedidosById[s.pedidoId]
+      const client = pedido && clients.find((c) => c.id === pedido.clienteId)
+      if (!pedido || !client) return null
+      return { ...client, ...s, pedido, id: s.pedidoId }
+    })
+    .filter(Boolean)
+
+  const total = stopsWithData.length
+  const entregados = stopsWithData.filter((s) => s.entregado).length
+
+  return (
+    <div className="app">
+      <header className="app-header">
+        <div className="brand">
+          <img src="/logo.jpg" alt="HealthyMeat" className="brand-logo" />
+          <span className="brand-name">Reparto</span>
+        </div>
+        <button className="btn-ghost" onClick={onChangeRole}>Cambiar modo</button>
+      </header>
+
+      <WeekNavigator
+        weekDates={weekDates}
+        viewDate={viewDate}
+        weekSummary={weekSummary}
+        onSelectDate={setViewDate}
+        onPrevWeek={() => setWeekAnchor(addDaysISO(weekAnchor, -7))}
+        onNextWeek={() => setWeekAnchor(addDaysISO(weekAnchor, 7))}
+        onToday={() => { setWeekAnchor(today); setViewDate(today) }}
+      />
+
+      {loading && (
+        <div className="upload-screen">
+          <p className="office-status-muted">Cargando la ruta de hoy…</p>
+        </div>
+      )}
+
+      {!loading && loadError && (
+        <div className="upload-screen">
+          <div className="upload-card">
+            <p className="upload-error">{loadError}</p>
+            <button className="btn-primary" onClick={loadEverything}>Reintentar</button>
+          </div>
+        </div>
+      )}
+
+      {!loading && !loadError && !route && (
+        <div className="upload-screen">
+          <div className="upload-card">
+            <img src="/logo.jpg" alt="HealthyMeat" className="upload-logo" />
+            <h1>Sin ruta todavía</h1>
+            <p>
+              La oficina no ha planificado la ruta de {esHoy ? 'hoy' : ''} {formatDateLong(viewDate)} todavía.
+              {esHoy && ' Esta pantalla se actualiza sola en cuanto la guarden.'}
+            </p>
+            <button className="btn-secondary" onClick={loadEverything}>Comprobar ahora</button>
+          </div>
+        </div>
+      )}
+
+      {!loading && !loadError && route && (
+        <>
+          <RouteProgress stopsData={stopsWithData} total={total} entregados={entregados} onSelect={setFocusStopId} />
+
+          <MapView stops={stopsWithData} currentPosition={currentPosition} focusStopId={focusStopId} />
+
+          {gpsError && (
+            <div className="toolbar">
+              <span className="gps-error">📍 {gpsError}</span>
+            </div>
+          )}
+
+          <div className="stop-list">
+            {stopsWithData.map((stop) => (
+              <StopCard
+                key={stop.pedidoId}
+                stop={stop}
+                pending={!!pendingIds[stop.pedidoId]}
+                error={stopErrors[stop.pedidoId]}
+                soloLectura={!esHoy}
+                onToggleSinFirma={() => toggleEntregadoSinFirma(stop.pedidoId, !stop.entregado)}
+                onFirmar={() => setSigningPedidoId(stop.pedidoId)}
+                onFocus={() => setFocusStopId(stop.pedidoId)}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {signingPedidoId && (
+        <SignaturePad
+          confirmLabel="Confirmar entrega"
+          onCancel={() => setSigningPedidoId(null)}
+          onConfirm={(png) => handleFirmaConfirmada(signingPedidoId, png)}
+        />
+      )}
+    </div>
+  )
 }
 
-export function haversineKm(a, b) {
-  const R = 6371
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180
-  const lat1 = (a.lat * Math.PI) / 180
-  const lat2 = (b.lat * Math.PI) / 180
-  const h =
-    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
-  return 2 * R * Math.asin(Math.sqrt(h))
+function WeekNavigator({ weekDates, viewDate, weekSummary, onSelectDate, onPrevWeek, onNextWeek, onToday }) {
+  return (
+    <div className="week-nav">
+      <button type="button" className="btn-icon" onClick={onPrevWeek} aria-label="Semana anterior">‹</button>
+      <div className="week-nav-days">
+        {weekDates.map((d) => {
+          const summary = weekSummary[d.iso]
+          const lleno = summary && summary.total > 0 && summary.entregados === summary.total
+          return (
+            <button
+              key={d.iso}
+              type="button"
+              className={`week-day ${viewDate === d.iso ? 'week-day--active' : ''} ${lleno ? 'week-day--done' : ''}`}
+              onClick={() => onSelectDate(d.iso)}
+            >
+              <span className="week-day-label">{d.label}</span>
+              <span className="week-day-num mono">{d.dayNum}</span>
+              {summary && summary.total > 0 && (
+                <span className="week-day-count mono">{summary.entregados}/{summary.total}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+      <button type="button" className="btn-icon" onClick={onNextWeek} aria-label="Semana siguiente">›</button>
+      <button type="button" className="btn-link week-today-btn" onClick={onToday}>Hoy</button>
+    </div>
+  )
+}
+
+function RouteProgress({ stopsData, total, entregados, onSelect }) {
+  const pct = total ? Math.round((entregados / total) * 100) : 0
+  return (
+    <div className="route-progress">
+      <div className="route-progress-bar">
+        <div className="route-progress-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="route-progress-meta">
+        <span className="mono">{entregados}/{total}</span>
+        <span className="route-progress-label">entregados</span>
+      </div>
+      <div className="route-dots">
+        {stopsData.map((s) => (
+          <button
+            key={s.pedidoId}
+            className={`route-dot ${s.entregado ? 'route-dot--done' : ''}`}
+            onClick={() => onSelect(s.pedidoId)}
+            aria-label={`Ir a parada ${s.orden}`}
+          >
+            {s.orden}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function StopCard({ stop, pending, error, soloLectura, onToggleSinFirma, onFirmar, onFocus }) {
+  const pedido = stop.pedido
+  const tieneAlbaran = !!pedido?.albaranPdf
+
+  return (
+    <div className={`stop-card ${stop.entregado ? 'stop-card--done' : ''}`} onClick={onFocus}>
+      <div className="stop-card-index mono">{stop.orden}</div>
+      <div className="stop-card-body">
+        <div className="stop-card-name">{stop.nombre}</div>
+        <div className="stop-card-address">{stop.direccion}</div>
+        <a
+          className="btn-link stop-card-maps-link"
+          href={googleMapsDirectionsUrl(stop)}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+        >
+          🧭 Cómo llegar (Google Maps)
+        </a>
+        <div className="stop-card-items">
+          {(pedido.lineas || []).map((l) => (
+            <div key={l.id}>📦 {l.producto || '(sin producto)'}: {l.cantidad} {l.unidad} · lote {l.lote}</div>
+          ))}
+        </div>
+        {stop.telefono && <div className="stop-card-phone">☎ {stop.telefono}</div>}
+        {(stop.dias || stop.horario) && (
+          <div className="stop-card-schedule">
+            🕐 {[stop.dias, stop.horario].filter(Boolean).join(' · ')}
+          </div>
+        )}
+        {tieneAlbaran && (
+          <button
+            type="button"
+            className="btn-link"
+            onClick={(e) => { e.stopPropagation(); openDataUrlInNewTab(pedido.albaranFirmado || pedido.albaranPdf) }}
+          >
+            📄 Ver albarán{pedido.numeroAlbaran ? ` (Nº ${pedido.numeroAlbaran})` : ''}
+          </button>
+        )}
+        {error && <div className="stop-card-warning">{error}</div>}
+      </div>
+
+      {soloLectura && (
+        <span className={`badge ${stop.entregado ? 'badge--propio' : 'badge--agencia'}`}>
+          {stop.entregado ? '✓ Entregado' : 'Pendiente'}
+        </span>
+      )}
+
+      {!soloLectura && !stop.entregado && tieneAlbaran && (
+        <button
+          className="stop-card-toggle"
+          disabled={pending}
+          onClick={(e) => { e.stopPropagation(); onFirmar() }}
+        >
+          {pending ? '…' : 'Firmar y entregar'}
+        </button>
+      )}
+      {!soloLectura && !stop.entregado && !tieneAlbaran && (
+        <button
+          className="stop-card-toggle"
+          disabled={pending}
+          onClick={(e) => { e.stopPropagation(); onToggleSinFirma() }}
+        >
+          {pending ? '…' : 'Marcar entregado'}
+        </button>
+      )}
+      {!soloLectura && stop.entregado && (
+        <button
+          className="stop-card-toggle stop-card-toggle--done"
+          disabled={pending}
+          onClick={(e) => { e.stopPropagation(); onToggleSinFirma() }}
+        >
+          ✓ Entregado
+        </button>
+      )}
+    </div>
+  )
 }
